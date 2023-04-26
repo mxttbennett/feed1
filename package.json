@@ -1,7 +1,7 @@
 {
   "name": "feed1",
   "version": "1.0.0",
-  "description": "discbot",
+  "description": "feed1 discord bot - last.fm, rym, rss functionalities bot",
   "main": "index.js",
   "scripts": {
     "dev": "echo \"Error: no dev script specified\" && exit 1",
