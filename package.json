@@ -1,9 +1,10 @@
 {
-  "name": "bmbmbm",
+  "name": "feed1",
   "version": "1.0.0",
   "description": "discbot",
   "main": "index.js",
   "scripts": {
+    "dev": "echo \"Error: no dev script specified\" && exit 1",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "matt",
