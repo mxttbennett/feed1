@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 var LastFmNode = require('lastfm').LastFmNode;
 
-const { lastfmKey, lastfmSecret } = require.main.require('./config.json')
+const { lastfmKey, lastfmSecret, users } = require.main.require('./config.json')
 
 
 module.exports = {
@@ -15,16 +15,17 @@ module.exports = {
                 secret: lastfmSecret,
             });
 
-            const trackStream = lastfm.stream('dankjankem');
+            await interaction.reply('Now logging now playing scrobbles for user group:');
 
-            if (trackStream) {
-                await interaction.reply('Now logging now playing scrobbles:');
-            }
+            users.forEach((user) => {
+                var trackStream = lastfm.stream(user);
 
-            trackStream.on('nowPlaying', async (track) => {
-                console.log(track.name);
-                await interaction.channel.send('Now playing:' + track.name);
-            });
+                trackStream.on('nowPlaying', async (track) => {
+                    await interaction.channel.send(`${user} now playing: ${track.name}`);
+                });
+
+                trackStream.start();
+            })
         }
         catch (e) {
             console.log(e.message)
