@@ -32,11 +32,11 @@ module.exports = {
                     users.forEach((user) => {
                         var trackStream = lastfm.stream(user);
 
-                        // const trackArtist = track.artist['#text'].replace('*', '\*') ?? null;
-                        // const trackAlbum = track.album['#text'].replace('\*') ?? null
-
-
                         trackStream.on('nowPlaying', async (track) => {
+
+                            const trackArtist = track.artist['#text'].replace('*', '\*') ?? null;
+                            const trackAlbum = track.album['#text'].replace('\*') ?? null
+
                             const exampleEmbed = new EmbedBuilder()
                                 .setColor(interaction.member.displayColor)
                                 .setTitle(track.name)
@@ -44,6 +44,7 @@ module.exports = {
                                 .setAuthor({ name: interaction.user.username, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
                                 // .setDescription(`[**${track.artist[`#text`]}**](http://www.google.com/search?q=${art}&as_sitesearch=rateyourmusic.com 'search rym for ${origart}')\n` +
                                 //     `[***${track.album[`#text`] ?? `[no album]`}***](http://www.google.com/search?q=${art}${alb}&as_sitesearch=rateyourmusic.com 'search rym for ${origart} - ${origalb}')`, true)
+                                .setDescription(`**${trackArtist}**\n*${trackAlbum ?? 'no album'}*`)
                                 .setThumbnail(track.image[3]['#text'])
                                 .setTimestamp()
                                 .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
