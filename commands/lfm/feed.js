@@ -40,7 +40,6 @@ module.exports = {
                             const exampleEmbed = new EmbedBuilder()
                                 .setColor(interaction.member.displayColor)
                                 .setTitle(track.name)
-                                .setURL('https://discord.js.org/')
                                 .setAuthor({ name: interaction.user.username, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
                                 .setDescription(generateLinkedDescription(trackArtist, trackAlbum), true)
                                 .setThumbnail(track.image[3]['#text'])
