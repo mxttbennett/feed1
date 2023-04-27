@@ -15,15 +15,15 @@ module.exports = {
                 secret: lastfmSecret,
             });
 
-            const trackStream = lastfm.stream('dankjankem')
+            const trackStream = lastfm.stream('dankjankem');
 
             if (trackStream) {
-                await interaction.reply('Now logging now playing scrobbles:')
+                await interaction.reply('Now logging now playing scrobbles:');
             }
 
             trackStream.on('nowPlaying', async (track) => {
-                console.log(track.name)
-                await interaction.channel.send('Now playing:' + track.name)
+                console.log(track.name);
+                await interaction.channel.send('Now playing:' + track.name);
             });
         }
         catch (e) {
