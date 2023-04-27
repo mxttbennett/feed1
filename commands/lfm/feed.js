@@ -32,8 +32,8 @@ module.exports = {
                     users.forEach((user) => {
                         var trackStream = lastfm.stream(user);
 
-                        const trackArtist = track.artist['#text'].replace('*', '\*') ?? null;
-                        const trackAlbum = track.album['#text'].replace('\*') ?? null
+                        // const trackArtist = track.artist['#text'].replace('*', '\*') ?? null;
+                        // const trackAlbum = track.album['#text'].replace('\*') ?? null
 
 
                         trackStream.on('nowPlaying', async (track) => {
