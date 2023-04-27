@@ -13,19 +13,6 @@ module.exports = {
         ),
     async execute(interaction) {
         try {
-            // inside a command, event listener, etc.
-            const exampleEmbed = new EmbedBuilder()
-                .setColor(0x0099FF)
-                .setTitle('Some title')
-                .setURL('https://discord.js.org/')
-                .setAuthor({ name: 'Some name', iconURL: 'https://i.imgur.com/AfFp7pu.png', url: 'https://discord.js.org' })
-                .setDescription('Some description here')
-                .setThumbnail('https://i.imgur.com/AfFp7pu.png')
-                .setImage('https://i.imgur.com/AfFp7pu.png')
-                .setTimestamp()
-                .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
-
-
             const cmdOption = interaction.options.getString('cmd');
 
             if (cmdOption === null || (cmdOption.trim().toLowerCase() !== 'start' && cmdOption.trim().toLowerCase() !== 'stop')) {
@@ -45,18 +32,22 @@ module.exports = {
                     users.forEach((user) => {
                         var trackStream = lastfm.stream(user);
 
+                        const trackArtist = track.artist['#text'].replace('*', '\*') ?? null;
+                        const trackAlbum = track.album['#text'].replace('\*') ?? null
+
+
                         trackStream.on('nowPlaying', async (track) => {
                             const exampleEmbed = new EmbedBuilder()
-                                .setColor(0x0099FF)
-                                .setTitle('Some title')
+                                .setColor(interaction.member.displayColor)
+                                .setTitle(track.name)
                                 .setURL('https://discord.js.org/')
-                                .setAuthor({ name: 'dankjankem', iconURL: interaction.member.avatarURL(), url: 'https://www.last.fm/user/dankjankem' })
-                                .setDescription(track.name)
-                                .setThumbnail(track.image[2]['#text'])
+                                .setAuthor({ name: interaction.user.username, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
+                                // .setDescription(`[**${track.artist[`#text`]}**](http://www.google.com/search?q=${art}&as_sitesearch=rateyourmusic.com 'search rym for ${origart}')\n` +
+                                //     `[***${track.album[`#text`] ?? `[no album]`}***](http://www.google.com/search?q=${art}${alb}&as_sitesearch=rateyourmusic.com 'search rym for ${origart} - ${origalb}')`, true)
+                                .setThumbnail(track.image[3]['#text'])
                                 .setTimestamp()
                                 .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
 
-                            await interaction.channel.send(`${user} now playing: ${track.name}`);
                             await interaction.channel.send({ embeds: [exampleEmbed] });
                         });
 
