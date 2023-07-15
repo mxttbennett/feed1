@@ -1,22 +1,21 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const generateLinkedDescription = require.main.require('./lib/funcs/generateLinkedDescription');
 const { lastfmKey, lastfmSecret, users } = require.main.require('./config.json')
 var LastFmNode = require('lastfm').LastFmNode;
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('feed')
-        .setDescription('Initializes a feed that reports now playing tracks for server users')
+        .setName('intersect')
+        .setDescription('Reports back the specified intersection.')
         .addStringOption(option =>
-            option.setName('cmd')
-                .setDescription('The input to echo back')
-                .addChoices({ name: 'start', value: 'start' }, { name: 'stop', value: 'stop' })
+            option.setName('type')
+                .setDescription('Artist or album')
+                .addChoices({ name: 'artist', value: 'artist' }, { name: 'album', value: 'album' })
         ),
     async execute(interaction) {
         try {
             const cmdOption = interaction.options.getString('cmd');
 
-            if (cmdOption === null || (cmdOption.trim().toLowerCase() !== 'start' && cmdOption.trim().toLowerCase() !== 'stop')) {
+            if ((cmdOption.trim() !== 'start' && cmdOption.trim().toLowerCase() !== 'stop')) {
                 console.log(cmdOption)
                 await interaction.reply('Error: must specify a launch option (cmd param).');
             }
@@ -34,14 +33,12 @@ module.exports = {
                         var trackStream = lastfm.stream(user);
 
                         trackStream.on('nowPlaying', async (track) => {
-                            const trackArtist = track.artist['#text'] ?? null;
-                            const trackAlbum = track.album['#text'] ?? null
-
                             const exampleEmbed = new EmbedBuilder()
                                 .setColor(interaction.member.displayColor)
                                 .setTitle(track.name)
-                                .setAuthor({ name: user, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
-                                .setDescription(generateLinkedDescription(trackArtist, trackAlbum), true)
+                                .setURL('https://discord.js.org/')
+                                .setAuthor({ name: interaction.user.username, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
+                                .setDescription(track.name)
                                 .setThumbnail(track.image[3]['#text'])
                                 .setTimestamp()
                                 .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
@@ -49,10 +46,8 @@ module.exports = {
                             await interaction.channel.send({ embeds: [exampleEmbed] });
                         });
 
-                        trackStream.start();
-
-                        // global.trackStreamInstance = trackStream;
-                        // global.trackStreamInstance.start();
+                        global.trackStreamInstance = trackStream;
+                        global.trackStreamInstance.start();
                     })
                 }
                 else {

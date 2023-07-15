@@ -1,11 +1,10 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
-const generateLinkedDescription = require.main.require('./lib/funcs/generateLinkedDescription');
 const { lastfmKey, lastfmSecret, users } = require.main.require('./config.json')
 var LastFmNode = require('lastfm').LastFmNode;
 
 module.exports = {
     data: new SlashCommandBuilder()
-        .setName('feed')
+        .setName('f')
         .setDescription('Initializes a feed that reports now playing tracks for server users')
         .addStringOption(option =>
             option.setName('cmd')
@@ -34,14 +33,12 @@ module.exports = {
                         var trackStream = lastfm.stream(user);
 
                         trackStream.on('nowPlaying', async (track) => {
-                            const trackArtist = track.artist['#text'] ?? null;
-                            const trackAlbum = track.album['#text'] ?? null
-
                             const exampleEmbed = new EmbedBuilder()
                                 .setColor(interaction.member.displayColor)
                                 .setTitle(track.name)
-                                .setAuthor({ name: user, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
-                                .setDescription(generateLinkedDescription(trackArtist, trackAlbum), true)
+                                .setURL('https://discord.js.org/')
+                                .setAuthor({ name: interaction.user.username, iconURL: interaction.member.displayAvatarURL(), url: 'https://www.last.fm/user/dankjankem' })
+                                .setDescription(track.name)
                                 .setThumbnail(track.image[3]['#text'])
                                 .setTimestamp()
                                 .setFooter({ text: 'Some footer text here', iconURL: 'https://i.imgur.com/AfFp7pu.png' });
@@ -49,10 +46,8 @@ module.exports = {
                             await interaction.channel.send({ embeds: [exampleEmbed] });
                         });
 
-                        trackStream.start();
-
-                        // global.trackStreamInstance = trackStream;
-                        // global.trackStreamInstance.start();
+                        global.trackStreamInstance = trackStream;
+                        global.trackStreamInstance.start();
                     })
                 }
                 else {
