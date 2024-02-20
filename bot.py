@@ -1,13 +1,13 @@
 
 import discord
 from discord.ext import commands
-import commands  # This imports the commands module we created
+import bot_commands  # This imports the commands module we created
 
-bot = commands.Bot(command_prefix='!')
+bot = bot_commands.Bot(command_prefix='!')
 
 def register_commands(bot):
-    bot.command(name='nowplaying')(commands.now_playing_cmd)
-    bot.command(name='topartists')(commands.top_artists_cmd)
+    bot.command(name='nowplaying')(bot_commands.now_playing_cmd)
+    bot.command(name='topartists')(bot_commands.top_artists_cmd)
     # Register additional commands here using the same pattern
 
 @bot.event
