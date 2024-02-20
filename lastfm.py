@@ -1,8 +1,11 @@
+import os
+from dotenv import load_dotenv
 
-import pylast
+from config import network
 
-# Initialize the Last.fm network with your credentials
-network = pylast.LastFMNetwork(api_key='your_api_key', api_secret='your_api_secret')
+from lastfm import *  # Importing all functions from lastfm.py
+
+load_dotenv()
 
 def get_now_playing(username):
     user = network.get_user(username)
