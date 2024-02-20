@@ -3,13 +3,9 @@ from dotenv import load_dotenv
 
 import discord
 
-import pylast
 from lastfm import *  # Importing all functions from lastfm.py
 
 load_dotenv()
-
-# Assuming there's an existing LastFM network setup here
-network = pylast.LastFMNetwork(api_key=os.getenv('LASTFM_API_KEY'), api_secret=os.getenv('LASTFM_API_SECRET'))
 
 async def now_playing_cmd(interaction: discord.Interaction, username: str):
     response = get_now_playing(username)

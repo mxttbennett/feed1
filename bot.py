@@ -1,12 +1,17 @@
 import os
 from dotenv import load_dotenv
+from config import network
 
 import discord
 from discord.ext import commands
 
+import pylast
+
 import bot_commands
 
 load_dotenv()
+
+network = pylast.LastFMNetwork(api_key=os.getenv('LASTFM_API_KEY'), api_secret=os.getenv('LASTFM_API_SECRET'))
 
 # Define intents
 intents = discord.Intents.default()
