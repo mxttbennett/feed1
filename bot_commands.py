@@ -1,70 +1,72 @@
 import os
+from dotenv import load_dotenv
 
 import discord
 
 import pylast
+from lastfm import *  # Importing all functions from lastfm.py
+
+load_dotenv()
 
 # Assuming there's an existing LastFM network setup here
 network = pylast.LastFMNetwork(api_key=os.getenv('LASTFM_API_KEY'), api_secret=os.getenv('LASTFM_API_SECRET'))
 
 async def now_playing_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Now playing information")
+    response = get_now_playing(username)
+    await interaction.response.send_message(response)
 
 async def top_artists_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Top artists information")
+    response = get_top_artists(username)
+    await interaction.response.send_message(response)
 
 async def recent_tracks_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Recent tracks information")
+    response = get_recent_tracks(username)
+    await interaction.response.send_message(response)
 
 async def loved_tracks_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Loved tracks information")
+    response = get_loved_tracks(username)
+    await interaction.response.send_message(response)
 
 async def top_tracks_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Top tracks information")
+    response = get_top_tracks(username)
+    await interaction.response.send_message(response)
 
 async def top_albums_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("Top albums information")
+    response = get_top_albums(username)
+    await interaction.response.send_message(response)
 
 async def artist_top_tracks_cmd(interaction: discord.Interaction, artist_name: str):
-    # Function logic...
-    await interaction.response.send_message("Artist's top tracks information")
+    response = get_artist_top_tracks(artist_name)
+    await interaction.response.send_message(response)
 
 async def artist_top_albums_cmd(interaction: discord.Interaction, artist_name: str):
-    # Function logic...
-    await interaction.response.send_message("Artist's top albums information")
+    response = get_artist_top_albums(artist_name)
+    await interaction.response.send_message(response)
 
 async def album_info_cmd(interaction: discord.Interaction, artist_name: str, album_name: str):
-    # Function logic...
-    await interaction.response.send_message("Album information")
+    response = get_album_info(artist_name, album_name)
+    await interaction.response.send_message(response)
 
 async def track_info_cmd(interaction: discord.Interaction, artist_name: str, track_name: str):
-    # Function logic...
-    await interaction.response.send_message("Track information")
+    response = get_track_info(artist_name, track_name)
+    await interaction.response.send_message(response)
 
 async def artist_info_cmd(interaction: discord.Interaction, artist_name: str):
-    # Function logic...
-    await interaction.response.send_message("Artist information")
+    response = get_artist_info(artist_name)
+    await interaction.response.send_message(response)
 
 async def user_info_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("User information")
+    response = get_user_info(username)
+    await interaction.response.send_message(response)
 
 async def user_friends_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("User's friends information")
+    response = get_user_friends(username)
+    await interaction.response.send_message(response)
 
 async def user_top_tags_cmd(interaction: discord.Interaction, username: str):
-    # Function logic...
-    await interaction.response.send_message("User's top tags information")
+    response = get_user_top_tags(username)
+    await interaction.response.send_message(response)
 
 async def artist_tags_cmd(interaction: discord.Interaction, artist_name: str):
-    # Function logic...
-    await interaction.response.send_message("Artist's tags information")
-
-# Note: The actual function logic needs to be implemented based on your LastFM API interactions and pylast functions
+    response = get_artist_tags(artist_name)
+    await interaction.response.send_message(response)
