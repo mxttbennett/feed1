@@ -115,7 +115,7 @@ async function createBackup(channel = null) {
 
     // Clean up old backups (keep last 50 for database, unlimited for users)
     const cleanupDirs = [
-      { path: backupDir, pattern: /database_.*\.sqlite$/, keep: 50 },
+      { path: backupDir, pattern: /database_.*\.sqlite$/, keep: 20 },
       { path: usersBackupDir, pattern: /users_.*\.csv$/, keep: Infinity }
     ];
 

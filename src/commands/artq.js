@@ -336,14 +336,6 @@ exports.run = async (client, message, args) => {
 			message.channel.send(`starting artist crown queue...\n\`` + artistLength + `\` artist crowns to process.`);
 		}
 		if (args[0] === '--r' && message.member.id === '175199958314516480') {
-			async function logToChannel(msg) {
-				try {
-					await message.channel.send(msg);
-				} catch (err) {
-					await logError(err, 'sending log message');
-				}
-			}
-
 			async function processArtist(currentArtist) {
 				try {
 					const Notifs = client.sequelize.import(`../models/Notifs.js`);
@@ -351,9 +343,25 @@ exports.run = async (client, message, args) => {
 					const ArtistRecord = client.sequelize.import(`../models/ArtistRecord.js`);
 
 					const threadPrefix = `[${currentArtist.artistName}]`;
+					let statusMsg = await message.channel.send(`${threadPrefix} Processing...`);
 
-					// Debug log artist info
-					await logToChannel(`${threadPrefix} 🔍 Processing artist`);
+					// Get all valid user IDs (excluding bots) in a single array
+					const gIDs = currentArtist.guildUserIDs.split(`,`);
+					const gUsers = currentArtist.guildUsers.split(`~,~`);
+					const botNames = ['UB3R-B0T', 'Tatsu', 'MonitoRSS', '.fmbot', 'JeopardyBot', 'Chuu', 'FMdaily', 'Untappdiscord', 
+									'Gamebot', 'Starboard', 'SnipeBot', 'GitBot', 'play-jeopardy', 'Elimina', 'FMcord Beta', 
+									'Banner Boi', 'Filmlinkd', 'the new fm', 'Snipe', 'makar fm', 'Readybot.io', 'feed1_dev', 'jeopardy!'];
+					const validUserIDs = gIDs.filter((id, index) => !botNames.includes(gUsers[index]));
+
+					// Fetch all users and their Last.fm usernames in one query
+					const users = await Users.findAll({
+						where: {
+							discordUserID: {
+								[Op.in]: validUserIDs
+							}
+						},
+						attributes: ['discordUserID', 'lastFMUsername']
+					});
 
 					const data = await lib.artist.getInfo(currentArtist.artistName);
 					if (!data || !data.artist) {
@@ -367,66 +375,29 @@ exports.run = async (client, message, args) => {
 						}
 					});
 
-					// Debug log crown check
-					await logToChannel(`${threadPrefix} 👑 Existing crown check: ${hasCrown ? 'Found' : 'Not found'}`);
-
-					var origKing = ``;
-					var origKingPlays = ``;
-					var origKingUser = ``;
+					let origKing = ``;
+					let origKingPlays = ``;
+					let origKingUser = ``;
 					if (hasCrown != null) {
 						origKing = hasCrown.userID;
 					}
 
-					var total = 0;
-					var listeners = 0;
-					var gIDs = currentArtist.guildUserIDs.split(`,`);
-					var gUsers = currentArtist.guildUsers.split(`~,~`);
-
-					// Filter out known bot accounts
-					const botNames = ['UB3R-B0T', 'Tatsu', 'MonitoRSS', '.fmbot', 'JeopardyBot', 'Chuu', 'FMdaily', 'Untappdiscord', 
-									'Gamebot', 'Starboard', 'SnipeBot', 'GitBot', 'play-jeopardy', 'Elimina', 'FMcord Beta', 
-									'Banner Boi', 'Filmlinkd', 'the new fm', 'Snipe', 'makar fm', 'Readybot.io', 'feed1_dev', 'jeopardy!'];
-
-					// Get all valid user IDs (excluding bots) in a single array
-					const validUserIDs = gIDs.filter((id, index) => !botNames.includes(gUsers[index]));
-
-					// Fetch all users and their Last.fm usernames in one query
-					const users = await Users.findAll({
-						where: {
-							discordUserID: {
-								[Op.in]: validUserIDs
-							}
-						},
-						attributes: ['discordUserID', 'lastFMUsername']
-					});
-
-					// Debug log user processing results
-					await logToChannel(`${threadPrefix} 📊 Processing results:\n- Total plays: ${total}\n- Listeners: ${listeners}\n- Valid users processed: ${users.length}`);
-
-					// Log the list of Last.fm usernames being checked
-					const sortedUsernames = users.map(u => u.lastFMUsername).sort();
-					await logToChannel(`${threadPrefix} 🔍 Checking Last.fm usernames:\n${sortedUsernames.join(', ')}`);
+					let total = 0;
+					let listeners = 0;
 
 					// Get artist info for all users in parallel
 					const userPlaycounts = await Promise.all(
 						users.map(async user => {
 							try {
 								const req = await lib.artist.getInfo(currentArtist.artistName, user.lastFMUsername);
-								if (!req.artist || !req.artist.stats.userplaycount) {
-									await logToChannel(`${threadPrefix} ⚠️ No playcount for user ${user.lastFMUsername}`);
-									return null;
-								}
+								if (!req.artist || !req.artist.stats.userplaycount) return null;
 
 								const plays = parseInt(req.artist.stats.userplaycount);
-								if (plays === 0) {
-									return null;
-								}
+								if (plays === 0) return null;
 
-								// Track original crown holder's plays
 								if (user.discordUserID === origKing) {
 									origKingPlays = plays.toString();
 									origKingUser = user.lastFMUsername;
-									await logToChannel(`${threadPrefix} 👑 Original crown holder ${origKingUser} has ${origKingPlays} plays`);
 								}
 
 								total += plays;
@@ -438,7 +409,7 @@ exports.run = async (client, message, args) => {
 									plays: plays.toString()
 								};
 							} catch (error) {
-								await logError(error, `${threadPrefix} Last.fm API request for ${user.lastFMUsername} - ${currentArtist.artistName}`);
+								await logError(error, `${threadPrefix} Last.fm API request for ${user.lastFMUsername}`);
 								return null;
 							}
 						})
@@ -448,15 +419,7 @@ exports.run = async (client, message, args) => {
 					const know = userPlaycounts.filter(result => result !== null);
 					const sorted = know.sort(sortingFunc)[0];
 
-					// Debug log sorted results
-					if (sorted) {
-						await logToChannel(`${threadPrefix} 📈 Top listener: ${sorted.name} with ${sorted.plays} plays`);
-					} else {
-						await logToChannel(`${threadPrefix} ⚠️ No valid listeners found`);
-					}
-
 					if (hasCrown === null && sorted && sorted.plays !== `0`) {
-						await logToChannel(`${threadPrefix} 👑 Creating new crown for ${sorted.name}`);
 						await Crowns.create({
 							guildID: currentArtist.guildID,
 							userID: sorted.userID,
@@ -466,7 +429,6 @@ exports.run = async (client, message, args) => {
 							serverListeners: listeners,
 							artistURL: data.artist.url
 						});
-						await logToChannel(`${threadPrefix} ✅ Crown created successfully`);
 					}
 					else if (hasCrown !== null && sorted) {
 						const userID = hasCrown.userID;
@@ -543,17 +505,20 @@ exports.run = async (client, message, args) => {
 						});
 					}
 
-					// Log success
-					await logToChannel(
-						`${threadPrefix} ✅ Processed\n` +
+					// Update final status message
+					const remainingCount = (await ArtistQueue.findAll()).length;
+					await statusMsg.edit(
+						`${threadPrefix}\n` +
 						`👥 Server: ${currentArtist.guildName}\n` +
 						`👑 Previous Crown: ${currentArtist.crownHolder || 'None'} (${currentArtist.crownPlays || '0'} plays)\n` +
-						`📊 Remaining in queue: ${(await ArtistQueue.findAll()).length}`
+						`📊 Processed ${users.length} users | ${listeners} listeners | ${total} total plays\n` +
+						`${sorted ? `👑 New Crown: ${sorted.name} (${sorted.plays} plays)\n` : ''}` +
+						`📝 Remaining in queue: ${remainingCount}`
 					);
 
 				} catch (error) {
 					await logError(error, `${threadPrefix} processing ${currentArtist.artistName}`);
-					throw error; // Re-throw to let queue processor handle retry
+					throw error;
 				}
 			}
 

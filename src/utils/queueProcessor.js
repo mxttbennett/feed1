@@ -1,7 +1,7 @@
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 5000; // 5 seconds base delay
 const QUEUE_CHECK_DELAY = 300000; // 5 minutes
-const PROCESS_DELAY = 45000; // Increased to 45 seconds between items to be safer with rate limits
+const PROCESS_DELAY = 10000; // 10 seconds between items
 const ERROR_LOGS_CHANNEL = '1350524158915776604';
 
 async function processQueue({

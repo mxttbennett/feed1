@@ -1,1 +1,1 @@
-pm2 kill && pm2 start pm2-process.json && pm2 logs
+npx pm2 kill; npx pm2 start pm2-process.json; npx pm2 logs
