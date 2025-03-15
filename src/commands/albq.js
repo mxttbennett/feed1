@@ -3,6 +3,7 @@ const { fetchuser } = require(`../utils/fetchuser`);
 const Library = require(`../lib/index.js`);
 const { Op } = require(`sequelize`);
 const ReactionInterface = require(`../utils/ReactionInterface`);
+const { processQueue } = require(`../utils/queueProcessor`);
 const sortingFunc = (a, b) => parseInt(b.plays) - parseInt(a.plays);
 require('events').EventEmitter.defaultMaxListeners = 20;
 let unique = new Set();
@@ -25,557 +26,332 @@ exports.run = async (client, message, args) => {
 	const Time = client.sequelize.import(`../models/Time.js`);
 	const TotalsAndAvgs = client.sequelize.import(`../models/TotalsAndAvgs.js`);
 	const ACrowns = client.sequelize.import(`../models/ACrowns.js`);
-	var albumList = await AlbumQueue.findAll();
-	var albumLength = albumList.length;
-	var thread = getRandomInt(1, 1000000);
-	var arguments = [`--r`, `r`, `--s`, `--start`, `--run`, `--pages`, `--lr`, `--rl`];
+	const Users = client.sequelize.import(`../models/Users.js`);
 
-	var timeAvgFetch = await TotalsAndAvgs.findAll();
-	if (!timeAvgFetch || timeAvgFetch.length === 0) {
-		// Initialize with default values if no record exists
-		await TotalsAndAvgs.create({
-			id: 1,
-			totalArtists: 0,
-			totalAlbums: 0,
-			artistAvg: 0,
-			albumAvg: 0
-		});
-		timeAvgFetch = await TotalsAndAvgs.findAll();
-	}
-
-	var TOTAL_ARTISTS = parseInt(timeAvgFetch[0].totalArtists);
-	var ARTIST_AVG = parseFloat(timeAvgFetch[0].artistAvg).toFixed(2);
-	ARTIST_AVG *= 1000;
-
-	var TOTAL_ALBUMS = parseInt(timeAvgFetch[0].totalAlbums);
-	var ALBUM_AVG = parseFloat(timeAvgFetch[0].albumAvg).toFixed(2);
-	ALBUM_AVG *= 1000;
-
-
-	if (albumLength == 0 && args[0] == `--pages`) {
-		return message.reply(`the album crown queue is currently empty.`);
-	}
-
-	if (args[0] != `--r` || message.member.id != `175199958314516480`) {
+	// Error logging function that sends to both console and error channel
+	async function logError(error, context = '') {
+		console.error(error);
 		try {
-			var timeList = await Time.findAll();
-			var checkedGuilds = [];
-			var sums = [];
-			var avgs = [];
-			var count = [];
-			var weight = [];
-			var totalAlbums = 0;
-			var totalAlbumsSum = 0;
-			var totalAlbumsAvg = 0;
-			if (timeList.length > 0 && timeList.length < 1000) {
-				for (var i = 0; i < timeList.length; i++) {
-					if (timeList[i].isAlbum == `true`) {
-						totalAlbums++;
-						totalAlbumsSum += parseFloat(timeList[i].ms);
-						if (!checkedGuilds.includes(timeList[i].guildID)) {
-							var counter = 0;
-							for (var j = 0; j < timeList.length; j++) {
-								if (timeList[j].guildID == timeList[i].guildID && timeList[j].isAlbum == `true`) {
-									if (counter == 0) {
-										sums.push(parseFloat(timeList[j].ms));
-										counter++;
-										count.push(1);
-
-									}
-									else {
-										sums[sums.length - 1] += parseFloat(timeList[j].ms);
-										count[count.length - 1] += 1;
-									}
-								}
-							}
-							checkedGuilds.push(timeList[i].guildID);
-						}
-					}
-				}
+			const errorChannel = client.channels.cache.get('1350524158915776604');
+			if (errorChannel) {
+				const errorMessage = `❌ Error in Album Queue${context ? ` (${context})` : ''}:\n\`\`\`\n${error.stack || error}\n\`\`\``;
+				await errorChannel.send(errorMessage);
 			}
-			else if (timeList.length >= 1000) {
-				var addedArtists = 0;
-				var addedArtistsSum = 0;
-				var addedAlbums = 0;
-				var addedAlbumsSum = 0;
-				var preservedIDs = [];
-				var artistGuilds = [];
-				var albumGuilds = [];
-
-
-				var timeMap = timeList
-					.map(x => {
-						return {
-							id: x.get(`id`),
-							isArtist: x.get(`isArtist`),
-							isAlbum: x.get(`isAlbum`),
-							guildID: x.get(`guildID`),
-							ms: x.get(`ms`)
-						};
-					})
-					.sort((a, b) => (parseInt(b.ms) - getRandomInt(1, parseInt(b.ms) * 2)));
-
-				for (var i = 0; i < timeMap.length; i++) {
-					if (timeMap[i].isArtist == `true`) {
-						if (artistGuilds.includes(timeMap[i].guildID)) {
-							addedArtists += 1;
-							addedArtistsSum += parseFloat(timeMap[i].ms);
-						}
-						else {
-							artistGuilds.push(timeMap[i].guildID);
-							preservedIDs.push(timeMap[i].id);
-						}
-					}
-					if (timeMap[i].isAlbum == `true`) {
-						if (albumGuilds.includes(timeMap[i].guildID)) {
-							addedAlbums += 1;
-							addedAlbumsSum += parseFloat(timeMap[i].ms);
-						}
-						else {
-							albumGuilds.push(timeMap[i].guildID);
-							preservedIDs.push(timeMap[i].id);
-						}
-					}
-
-					if (!preservedIDs.includes(timeMap[i].id)) {
-						await Time.destroy({
-							where: {
-								id: timeMap[i].id
-							}
-						});
-					}
-
-				}
-
-				var newArtistTotal = TOTAL_ARTISTS + addedArtists;
-				var newAlbumTotal = TOTAL_ALBUMS + addedAlbums;
-
-				var newArtistAvg = parseFloat((((TOTAL_ARTISTS * ARTIST_AVG) + addedArtistsSum) / newArtistTotal) / 1000).toFixed(15);
-				var newAlbumAvg = parseFloat((((TOTAL_ALBUMS * ALBUM_AVG) + addedAlbumsSum) / newAlbumTotal) / 1000).toFixed(15);
-
-				TOTAL_ARTISTS = newArtistTotal;
-				TOTAL_ALBUMS = newAlbumTotal;
-
-
-				await TotalsAndAvgs.update({
-					totalArtists: newArtistTotal,
-					totalAlbums: newAlbumTotal,
-					artistAvg: newArtistAvg,
-					albumAvg: newAlbumAvg
-				},
-					{
-						where: {
-							id: 1
-						}
-					});
-			}
-
-
-			var relevantGuilds = [];
-			var relevantSums = [];
-			var relevantCount = [];
-			var weightCount = [];
-			for (var i = 0; i < checkedGuilds.length; i++) {
-				var counter = 0;
-
-				for (y = 0; y < albumList.length; y++) {
-					if (checkedGuilds[i] == albumList[y].guildID) {
-
-						if (counter == 0) {
-							relevantGuilds.push(checkedGuilds[i]);
-							relevantSums.push(sums[i]);
-							relevantCount.push(count[i]);
-							weightCount.push(1);
-							counter += 1;
-						}
-						else {
-							weightCount[weightCount.length - 1] += 1;
-
-						}
-					}
-				}
-			}
-
-			for (var i = 0; i < relevantGuilds.length; i++) {
-				avgs.push(parseFloat(relevantSums[i]) / parseFloat(relevantCount[i]));
-				weight.push(parseFloat(weightCount[i]) / parseFloat(albumList.length));
-			}
-
-			var time_avg = 0;
-			for (var i = 0; i < relevantGuilds.length; i++) {
-				time_avg += parseFloat(avgs[i] * weight[i] / 1000);
-			}
-
-			totalAlbumsSum += (ALBUM_AVG * TOTAL_ALBUMS);
-			totalAlbums += TOTAL_ALBUMS;
-			totalAlbumsAvg = parseFloat(totalAlbumsSum / totalAlbums / 1000)
-
-			var totalProcessingTime = parseFloat(((totalAlbumsSum) / 1000 / 60 / 60 / 24).toFixed(2));
-
-			var minutes = false;
-			time_avg = parseFloat(time_avg.toFixed(2));
-
-
-			if (minutes) {
-				var eta = parseFloat(((albumLength * time_avg) / 60).toFixed(2));
-			}
-			else {
-				var eta = parseFloat(((albumLength * time_avg) / 60 / 60).toFixed(2));
-			}
-
-			var total_minutes = false;
-			if (totalAlbumsAvg >= 60) {
-				totalAlbumsAvg = parseFloat((totalAlbumsAvg / 60).toFixed(2));
-				total_minutes = true;
-			}
-			else {
-				totalAlbumsAvg = parseFloat(totalAlbumsAvg.toFixed(2));
-			}
-
-		}
-		catch (e) {
-			console.error(e);
-		}
-
-		var ALBUM_AVG_DISPLAY = (ALBUM_AVG / 1000).toFixed(2);
-		var x = 0;
-		var description = albumList
-			.slice(0, 10)
-			.map(k => `${++x}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} | ${k.userName} - ${k.chartType} ${k.crownHolder != `` ? `| :crown: [` + k.crownHolder + `](https://www.last.fm/user/` + k.crownHolder + `) (` + k.crownPlays + `) :crown:` : ``}`)
-			.join(`\n`);
-		var embed = new MessageEmbed()
-			.setColor(message.member.displayColor)
-			.setTitle(`**Album Crown Queue**`)
-			.setDescription(description)
-			.setFooter(albumLength + ` albums in queue | ${albumLength == 0 ? `0` : time_avg} sec/album | ~` + eta + ` hours until complete\n` +
-				totalAlbums + ` total albums processed | ` + ALBUM_AVG_DISPLAY + ` sec/album | ~` + totalProcessingTime + ` days spent processing`, `https://i.imgur.com/ysyfHk7.gif`);
-		//.setTimestamp();
-		var msg = await message.channel.send({ embed });
-
-
-		var global_page = 1;
-		var global_offset = 0;
-		if (albumList.length > 10 && args[0] != `--live`) {
-			const rl = new ReactionInterface(msg, message.author);
-			const length = Math.ceil(albumList.length / 10);
-			let offset = 0, page = 1;
-			const func = async off => {
-				let num = off;
-				const description = albumList
-					.slice(off, off + 10)
-					.map(k => `${++num}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} | ${k.userName} - ${k.chartType} ${k.crownHolder != `` ? `| :crown: [` + k.crownHolder + `](https://www.last.fm/user/` + k.crownHolder + `) (` + k.crownPlays + `) :crown:` : ``}`)
-					.join(`\n`);
-				const embed = new MessageEmbed()
-					.setColor(message.member.displayColor)
-					.setTitle(`**Album Crown Queue**`)
-					.setDescription(description)
-					.setFooter(albumLength + ` albums in queue | ${albumLength == 0 ? `0` : time_avg} ${minutes == true ? `min/album` : `sec/album`} | ~` + eta + ` hours until complete\n` +
-						totalAlbums + ` total albums processed | ` + totalAlbumsAvg + ` sec/album | ` + totalProcessingTime + ` days spent processing`, `https://i.imgur.com/ysyfHk7.gif`)
-				//.setTimestamp();
-				await msg.edit({ embed });
-			};
-			const toFront = () => {
-				if (page !== length) {
-					offset += 10, page++;
-					global_page++;
-					global_offset += 10;
-					func(offset);
-				}
-			};
-			const toBack = () => {
-				if (page !== 1) {
-					offset -= 10, page--;
-					global_page++;
-					global_offset -= 10;
-					func(offset);
-				}
-			};
-			await rl.setKey(client.snippets.arrowLeft, toBack);
-			await rl.setKey(client.snippets.arrowRight, toFront);
+		} catch (e) {
+			console.error('Failed to log error to channel:', e);
 		}
 	}
-	//console.log(`hhdf`);
-	if (arguments.includes(args[0]) && message.member.id == `175199958314516480` && args[0] != `--pages` && args[0] != `--live`) {
-		message.channel.send(`starting album crown queue...\n\`` + albumLength + `\` album crowns to process.`);
-	}
 
-	var msg_trip = 0;
-	var msg = ``;
-	if (args[0] == `--r` && message.member.id == `175199958314516480`) {
-		var REFRESH_COUNTER = 0;
-		while (albumLength > 0) {
+	try {
+		var albumList = await AlbumQueue.findAll();
+		var albumLength = albumList.length;
+		var thread = getRandomInt(1, 1000000);
+		var arguments = [`--r`, `r`, `--s`, `--start`, `--run`, `--pages`, `--lr`, `--rl`];
+
+		var timeAvgFetch = await TotalsAndAvgs.findAll();
+		if (!timeAvgFetch || timeAvgFetch.length === 0) {
+			// Initialize with default values if no record exists
+			await TotalsAndAvgs.create({
+				id: 1,
+				totalArtists: 0,
+				totalAlbums: 0,
+				artistAvg: 0,
+				albumAvg: 0
+			});
+			timeAvgFetch = await TotalsAndAvgs.findAll();
+		}
+
+		var TOTAL_ARTISTS = parseInt(timeAvgFetch[0].totalArtists);
+		var ARTIST_AVG = parseFloat(timeAvgFetch[0].artistAvg).toFixed(2);
+		ARTIST_AVG *= 1000;
+
+		var TOTAL_ALBUMS = parseInt(timeAvgFetch[0].totalAlbums);
+		var ALBUM_AVG = parseFloat(timeAvgFetch[0].albumAvg).toFixed(2);
+		ALBUM_AVG *= 1000;
+
+
+		if (albumLength == 0 && args[0] == `--pages`) {
+			return message.reply(`the album crown queue is currently empty.`);
+		}
+
+		if (args[0] != `--r` || message.member.id != `175199958314516480`) {
 			try {
-				if (albumLength >= 0) {
-					REFRESH_COUNTER += 1;
-					//if (REFRESH_COUNTER % 10 == 0){
-					timeAvgFetch = await TotalsAndAvgs.findAll();
-					TOTAL_ALBUMS = parseInt(timeAvgFetch[0].totalAlbums);
-					ALBUM_AVG = parseFloat(timeAvgFetch[0].albumAvg).toFixed(15);
-					ALBUM_AVG *= 1000;
-					//}
-					var timeList = await Time.findAll();
-					var checkedGuilds = [];
-					var sums = [];
-					var avgs = [];
-					var count = [];
-					var weight = [];
-					var totalAlbums = 0;
-					var totalAlbumsSum = 0;
-					var totalAlbumsAvg = 0;
-					if (timeList.length > 0 && timeList.length < 1000) {
-						for (var i = 0; i < timeList.length; i++) {
-							if (timeList[i].isAlbum == `true`) {
-								totalAlbums++;
-								totalAlbumsSum += parseFloat(timeList[i].ms);
-								if (!checkedGuilds.includes(timeList[i].guildID)) {
-									var counter = 0;
-									for (var j = 0; j < timeList.length; j++) {
-										if (timeList[j].guildID == timeList[i].guildID && timeList[j].isAlbum == `true`) {
-											if (counter == 0) {
-												sums.push(parseFloat(timeList[j].ms));
-												counter++;
-												count.push(1);
+				var timeList = await Time.findAll();
+				var checkedGuilds = [];
+				var sums = [];
+				var avgs = [];
+				var count = [];
+				var weight = [];
+				var totalAlbums = 0;
+				var totalAlbumsSum = 0;
+				var totalAlbumsAvg = 0;
+				if (timeList.length > 0 && timeList.length < 1000) {
+					for (var i = 0; i < timeList.length; i++) {
+						if (timeList[i].isAlbum == `true`) {
+							totalAlbums++;
+							totalAlbumsSum += parseFloat(timeList[i].ms);
+							if (!checkedGuilds.includes(timeList[i].guildID)) {
+								var counter = 0;
+								for (var j = 0; j < timeList.length; j++) {
+									if (timeList[j].guildID == timeList[i].guildID && timeList[j].isAlbum == `true`) {
+										if (counter == 0) {
+											sums.push(parseFloat(timeList[j].ms));
+											counter++;
+											count.push(1);
 
-											}
-											else {
-												sums[sums.length - 1] += parseFloat(timeList[j].ms);
-												count[count.length - 1] += 1;
-											}
+										}
+										else {
+											sums[sums.length - 1] += parseFloat(timeList[j].ms);
+											count[count.length - 1] += 1;
 										}
 									}
-									checkedGuilds.push(timeList[i].guildID);
 								}
+								checkedGuilds.push(timeList[i].guildID);
 							}
 						}
 					}
-					else if (timeList.length >= 1000) {
-						var addedArtists = 0;
-						var addedArtistsSum = 0;
-						var addedAlbums = 0;
-						var addedAlbumsSum = 0;
-						var preservedIDs = [];
-						var artistGuilds = [];
-						var albumGuilds = [];
+				}
+				else if (timeList.length >= 1000) {
+					var addedArtists = 0;
+					var addedArtistsSum = 0;
+					var addedAlbums = 0;
+					var addedAlbumsSum = 0;
+					var preservedIDs = [];
+					var artistGuilds = [];
+					var albumGuilds = [];
 
 
-						var timeMap = timeList
-							.map(x => {
-								return {
-									id: x.get(`id`),
-									isArtist: x.get(`isArtist`),
-									isAlbum: x.get(`isAlbum`),
-									guildID: x.get(`guildID`),
-									ms: x.get(`ms`)
-								};
-							})
-							.sort((a, b) => (parseInt(b.ms) - getRandomInt(1, parseInt(b.ms) * 2)));
+					var timeMap = timeList
+						.map(x => {
+							return {
+								id: x.get(`id`),
+								isArtist: x.get(`isArtist`),
+								isAlbum: x.get(`isAlbum`),
+								guildID: x.get(`guildID`),
+								ms: x.get(`ms`)
+							};
+						})
+						.sort((a, b) => (parseInt(b.ms) - getRandomInt(1, parseInt(b.ms) * 2)));
 
-						for (var i = 0; i < timeMap.length; i++) {
-							if (timeMap[i].isArtist == `true`) {
-								if (artistGuilds.includes(timeMap[i].guildID)) {
-									addedArtists += 1;
-									addedArtistsSum += parseFloat(timeMap[i].ms);
-								}
-								else {
-									artistGuilds.push(timeMap[i].guildID);
-									preservedIDs.push(timeMap[i].id);
-								}
+					for (var i = 0; i < timeMap.length; i++) {
+						if (timeMap[i].isArtist == `true`) {
+							if (artistGuilds.includes(timeMap[i].guildID)) {
+								addedArtists += 1;
+								addedArtistsSum += parseFloat(timeMap[i].ms);
 							}
-							if (timeMap[i].isAlbum == `true`) {
-								if (albumGuilds.includes(timeMap[i].guildID)) {
-									addedAlbums += 1;
-									addedAlbumsSum += parseFloat(timeMap[i].ms);
-								}
-								else {
-									albumGuilds.push(timeMap[i].guildID);
-									preservedIDs.push(timeMap[i].id);
-								}
+							else {
+								artistGuilds.push(timeMap[i].guildID);
+								preservedIDs.push(timeMap[i].id);
 							}
-
-							if (!preservedIDs.includes(timeMap[i].id)) {
-								await Time.destroy({
-									where: {
-										id: timeMap[i].id
-									}
-								});
+						}
+						if (timeMap[i].isAlbum == `true`) {
+							if (albumGuilds.includes(timeMap[i].guildID)) {
+								addedAlbums += 1;
+								addedAlbumsSum += parseFloat(timeMap[i].ms);
 							}
-
+							else {
+								albumGuilds.push(timeMap[i].guildID);
+								preservedIDs.push(timeMap[i].id);
+							}
 						}
 
-						var newArtistTotal = TOTAL_ARTISTS + addedArtists;
-						var newAlbumTotal = TOTAL_ALBUMS + addedAlbums;
-
-						var newArtistAvg = parseFloat((((TOTAL_ARTISTS * ARTIST_AVG) + addedArtistsSum) / newArtistTotal) / 1000).toFixed(15);
-						var newAlbumAvg = parseFloat((((TOTAL_ALBUMS * ALBUM_AVG) + addedAlbumsSum) / newAlbumTotal) / 1000).toFixed(15);
-
-						TOTAL_ARTISTS = newArtistTotal;
-						TOTAL_ALBUMS = newAlbumTotal;
-
-
-						await TotalsAndAvgs.update({
-							totalArtists: newArtistTotal,
-							totalAlbums: newAlbumTotal,
-							artistAvg: newArtistAvg,
-							albumAvg: newAlbumAvg
-						},
-							{
+						if (!preservedIDs.includes(timeMap[i].id)) {
+							await Time.destroy({
 								where: {
-									id: 1
+									id: timeMap[i].id
 								}
 							});
+						}
+
 					}
 
-					var relevantGuilds = [];
-					var relevantSums = [];
-					var relevantCount = [];
-					var weightCount = [];
-					for (var i = 0; i < checkedGuilds.length; i++) {
-						var counter = 0;
+					var newArtistTotal = TOTAL_ARTISTS + addedArtists;
+					var newAlbumTotal = TOTAL_ALBUMS + addedAlbums;
 
-						for (y = 0; y < albumList.length; y++) {
-							if (checkedGuilds[i] == albumList[y].guildID) {
+					var newArtistAvg = parseFloat((((TOTAL_ARTISTS * ARTIST_AVG) + addedArtistsSum) / newArtistTotal) / 1000).toFixed(15);
+					var newAlbumAvg = parseFloat((((TOTAL_ALBUMS * ALBUM_AVG) + addedAlbumsSum) / newAlbumTotal) / 1000).toFixed(15);
 
-								if (counter == 0) {
-									relevantGuilds.push(checkedGuilds[i]);
-									relevantSums.push(sums[i]);
-									relevantCount.push(count[i]);
-									weightCount.push(1);
-									counter += 1;
-								}
-								else {
-									weightCount[weightCount.length - 1] += 1;
+					TOTAL_ARTISTS = newArtistTotal;
+					TOTAL_ALBUMS = newAlbumTotal;
 
-								}
+
+					await TotalsAndAvgs.update({
+						totalArtists: newArtistTotal,
+						totalAlbums: newAlbumTotal,
+						artistAvg: newArtistAvg,
+						albumAvg: newAlbumAvg
+					},
+						{
+							where: {
+								id: 1
 							}
-						}
-					}
-
-					for (var i = 0; i < relevantGuilds.length; i++) {
-						avgs.push(parseFloat(relevantSums[i]) / parseFloat(relevantCount[i]));
-						weight.push(parseFloat(weightCount[i]) / parseFloat(albumList.length));
-					}
-
-					var time_avg = 0;
-					for (var i = 0; i < relevantGuilds.length; i++) {
-						time_avg += parseFloat(avgs[i] * weight[i] / 1000);
-					}
-
-					totalAlbumsSum += (ALBUM_AVG * TOTAL_ALBUMS);
-					totalAlbums += TOTAL_ALBUMS;
-					totalAlbumsAvg = parseFloat(totalAlbumsSum / totalAlbums / 1000)
-					var eta = parseFloat(((albumLength * time_avg) / 60 / 60).toFixed(2));
-					var totalProcessingTime = parseFloat(((totalAlbumsSum) / 1000 / 60 / 60 / 24).toFixed(2));
-
-					var minutes = false;
-					time_avg = parseFloat(time_avg.toFixed(2));
+						});
+				}
 
 
+				var relevantGuilds = [];
+				var relevantSums = [];
+				var relevantCount = [];
+				var weightCount = [];
+				for (var i = 0; i < checkedGuilds.length; i++) {
+					var counter = 0;
 
+					for (y = 0; y < albumList.length; y++) {
+						if (checkedGuilds[i] == albumList[y].guildID) {
 
-
-
-					var total_minutes = false;
-					totalAlbumsAvg = parseFloat(totalAlbumsAvg.toFixed(2));
-
-
-					const ARecord = client.sequelize.import(`../models/AlbumRecord.js`);
-					var aRec = await ARecord.findAll();
-
-					var c = 0;
-					var description = albumList
-						.slice(0, 10)
-						.map(k => `${++c}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} | ${k.userName} - ${k.chartType} ${k.crownHolder != `` ? `| :crown: [` + k.crownHolder + `](https://www.last.fm/user/` + k.crownHolder + `) (` + k.crownPlays + `) :crown:` : ``}`)
-						.join(`\n`);
-
-					if (aRec.length > 3) {
-						for (var rec = 0; rec < aRec.length - 3; rec++) {
-
-							await ARecord.destroy({
-								where: {
-									id: aRec[rec].id
-								}
-							});
-
-						}
-						var z = 0;
-						var temp_desc = description;
-						description += `\n\n**Recently Processed**\n`;
-						description += aRec
-							.slice(aRec.length - 3, aRec.length)
-							.map(k => `${++z}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} ${k.prevOwner != `` ? `| :crown: [` + k.prevOwner + `]` + `(https://www.last.fm/user/` + k.prevOwner + `) (` + k.prevPlays + `)  **→** [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:` : `| :crown: New: [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:`}`)
-							.join(`\n`);
-						if (description.length > 2048) {
-							z = 0;
-							description = temp_desc + `\n\n**Recently Processed**\n` + aRec
-								.slice(aRec.length - 2, aRec.length)
-								.map(k => `${++z}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} ${k.prevOwner != `` ? `| :crown: [` + k.prevOwner + `]` + `(https://www.last.fm/user/` + k.prevOwner + `) (` + k.prevPlays + `)  **→** [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:` : `| :crown: New: [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:`}`)
-								.join(`\n`);
-							if (description.length > 2048) {
-								z = 0;
-								description = temp_desc + `\n\n**Recently Processed**\n` + aRec
-									.slice(aRec.length - 1, aRec.length)
-									.map(k => `${++z}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} ${k.prevOwner != `` ? `| :crown: [` + k.prevOwner + `]` + `(https://www.last.fm/user/` + k.prevOwner + `) (` + k.prevPlays + `)  **→** [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:` : `| :crown: New: [` + k.newOwner + `](https://www.last.fm/user/` + k.newOwner + `) (` + k.newPlays + `) :crown:`}`)
-									.join(`\n`);
-								if (description.length > 2048) {
-									description = temp_desc;
-								}
+							if (counter == 0) {
+								relevantGuilds.push(checkedGuilds[i]);
+								relevantSums.push(sums[i]);
+								relevantCount.push(count[i]);
+								weightCount.push(1);
+								counter += 1;
+							}
+							else {
+								weightCount[weightCount.length - 1] += 1;
 
 							}
 						}
-
-					}
-
-					//var ALBUM_AVG_DISPLAY = (ALBUM_AVG/1000).toFixed(2);
-					var time = new Date();
-					var embed = new MessageEmbed()
-						.setColor(message.member.displayColor)
-						.setTitle(`**Album Crown Queue**`)
-						.setDescription(description)
-						.setTimestamp()
-						.setFooter(albumLength + ` albums in queue | ` + time_avg + ` sec/album | ~` + eta + ` hours until complete\n` +
-							totalAlbums + ` total albums processed | ` + totalAlbumsAvg + ` sec/album | ` + totalProcessingTime + ` days spent processing\n`, `https://i.imgur.com/ysyfHk7.gif`)
-					try {
-						await msg.edit({ embed });
-
-					}
-					catch {
-						msg = await message.channel.send({ embed });
-					}
-					if (albumLength == 0) {
-						await sleep(120000);
-					}
-					else {
-						//await sleep(20000);
 					}
 				}
 
+				for (var i = 0; i < relevantGuilds.length; i++) {
+					avgs.push(parseFloat(relevantSums[i]) / parseFloat(relevantCount[i]));
+					weight.push(parseFloat(weightCount[i]) / parseFloat(albumList.length));
+				}
+
+				var time_avg = 0;
+				for (var i = 0; i < relevantGuilds.length; i++) {
+					time_avg += parseFloat(avgs[i] * weight[i] / 1000);
+				}
+
+				totalAlbumsSum += (ALBUM_AVG * TOTAL_ALBUMS);
+				totalAlbums += TOTAL_ALBUMS;
+				totalAlbumsAvg = parseFloat(totalAlbumsSum / totalAlbums / 1000)
+
+				var totalProcessingTime = parseFloat(((totalAlbumsSum) / 1000 / 60 / 60 / 24).toFixed(2));
+
+				var minutes = false;
+				time_avg = parseFloat(time_avg.toFixed(2));
+
+
+				if (minutes) {
+					var eta = parseFloat(((albumLength * time_avg) / 60).toFixed(2));
+				}
+				else {
+					var eta = parseFloat(((albumLength * time_avg) / 60 / 60).toFixed(2));
+				}
+
+				var total_minutes = false;
+				if (totalAlbumsAvg >= 60) {
+					totalAlbumsAvg = parseFloat((totalAlbumsAvg / 60).toFixed(2));
+					total_minutes = true;
+				}
+				else {
+					totalAlbumsAvg = parseFloat(totalAlbumsAvg.toFixed(2));
+				}
 
 			}
 			catch (e) {
-				console.error(e);
+				await logError(e, 'time calculation');
+				return;
 			}
-			if (message.member.id == `175199958314516480` && arguments.includes(args[0]) && args[0] != `--pages` && args[0] != `--live`) {
+
+			var ALBUM_AVG_DISPLAY = (ALBUM_AVG / 1000).toFixed(2);
+			var x = 0;
+			var description = albumList
+				.slice(0, 10)
+				.map(k => `${++x}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} | ${k.userName} - ${k.chartType} ${k.crownHolder != `` ? `| :crown: [` + k.crownHolder + `](https://www.last.fm/user/` + k.crownHolder + `) (` + k.crownPlays + `) :crown:` : ``}`)
+				.join(`\n`);
+			var embed = new MessageEmbed()
+				.setColor(message.member.displayColor)
+				.setTitle(`**Album Crown Queue**`)
+				.setDescription(description)
+				.setFooter(albumLength + ` albums in queue | ${albumLength == 0 ? `0` : time_avg} sec/album | ~` + eta + ` hours until complete\n` +
+					totalAlbums + ` total albums processed | ` + ALBUM_AVG_DISPLAY + ` sec/album | ~` + totalProcessingTime + ` days spent processing`, `https://i.imgur.com/ysyfHk7.gif`);
+			//.setTimestamp();
+			var msg = await message.channel.send({ embed });
+
+
+			var global_page = 1;
+			var global_offset = 0;
+			if (albumList.length > 10 && args[0] != `--live`) {
+				const rl = new ReactionInterface(msg, message.author);
+				const length = Math.ceil(albumList.length / 10);
+				let offset = 0, page = 1;
+				const func = async off => {
+					let num = off;
+					const description = albumList
+						.slice(off, off + 10)
+						.map(k => `${++num}. __${k.artistName}__ — ***${k.albumName}***\n${k.guildName} | ${k.userName} - ${k.chartType} ${k.crownHolder != `` ? `| :crown: [` + k.crownHolder + `](https://www.last.fm/user/` + k.crownHolder + `) (` + k.crownPlays + `) :crown:` : ``}`)
+						.join(`\n`);
+					const embed = new MessageEmbed()
+						.setColor(message.member.displayColor)
+						.setTitle(`**Album Crown Queue**`)
+						.setDescription(description)
+						.setFooter(albumLength + ` albums in queue | ${albumLength == 0 ? `0` : time_avg} ${minutes == true ? `min/album` : `sec/album`} | ~` + eta + ` hours until complete\n` +
+							totalAlbums + ` total albums processed | ` + totalAlbumsAvg + ` sec/album | ` + totalProcessingTime + ` days spent processing`, `https://i.imgur.com/ysyfHk7.gif`)
+					//.setTimestamp();
+					await msg.edit({ embed });
+				};
+				const toFront = () => {
+					if (page !== length) {
+						offset += 10, page++;
+						global_page++;
+						global_offset += 10;
+						func(offset);
+					}
+				};
+				const toBack = () => {
+					if (page !== 1) {
+						offset -= 10, page--;
+						global_page++;
+						global_offset -= 10;
+						func(offset);
+					}
+				};
+				await rl.setKey(client.snippets.arrowLeft, toBack);
+				await rl.setKey(client.snippets.arrowRight, toFront);
+			}
+		}
+		//console.log(`hhdf`);
+		if (arguments.includes(args[0]) && message.member.id == `175199958314516480` && args[0] != `--pages` && args[0] != `--live`) {
+			message.channel.send(`starting album crown queue...\n\`` + albumLength + `\` album crowns to process.`);
+		}
+
+		var msg_trip = 0;
+		var msg = ``;
+		if (args[0] === '--r' && message.member.id === '175199958314516480') {
+			async function logToChannel(msg) {
 				try {
-					var time_before = Date.now();
-					const Users = client.sequelize.import(`../models/Users.js`);
+					await message.channel.send(msg);
+				} catch (err) {
+					await logError(err, 'sending log message');
+				}
+			}
+
+			async function processAlbum(currentAlbum) {
+				try {
+					const ACrowns = client.sequelize.import(`../models/ACrowns.js`);
 					const Albums = client.sequelize.import(`../models/Albums.js`);
 					const Notifs = client.sequelize.import(`../models/Notifs.js`);
 					const WNotifs = client.sequelize.import(`../models/WNotifs.js`);
 					const AlbumRecord = client.sequelize.import(`../models/AlbumRecord.js`);
 
-					var artistName = albumList[0].artistName;
-					var albumName = albumList[0].albumName;
-					const user = await fetchUser.username();
-					const know = [];
-					const data = await lib.album.getInfo(artistName, albumName);
+					const threadPrefix = `[${currentAlbum.artistName} - ${currentAlbum.albumName}]`;
+
+					// Debug log album info
+					await logToChannel(`${threadPrefix} 🔍 Processing album`);
 
 					const hasCrown = await ACrowns.findOne({
 						where: {
-							guildID: albumList[0].guildID,
-							artistName: data.album.artist,
-							albumName: data.album.name
+							guildID: currentAlbum.guildID,
+							artistName: currentAlbum.artistName,
+							albumName: currentAlbum.albumName
 						}
 					});
+
+					// Debug log crown check
+					await logToChannel(`${threadPrefix} 👑 Existing crown check: ${hasCrown ? 'Found' : 'Not found'}`);
 
 					var origKing = ``;
 					var origKingPlays = ``;
@@ -584,276 +360,227 @@ exports.run = async (client, message, args) => {
 						origKing = hasCrown.userID;
 					}
 
-					//const guild = await message.guild.fetchMembers();
 					var total = 0;
 					var listeners = 0;
-					var gIDs = albumList[0].guildUserIDs.split(`,`);
-					var gUsers = albumList[0].guildUsers.split(`~,~`);
-					for (var i = 0; i < gIDs.length; i++) {
-						const user = await fetchUser.usernameFromId(gIDs[i]);
-						if (!user) continue;
-						const req = await lib.album.getInfo(artistName, albumName, user);
+					var gIDs = currentAlbum.guildUserIDs.split(`,`);
+					var gUsers = currentAlbum.guildUsers.split(`~,~`);
 
-						if (gIDs[i] == origKing) {
-							if (req.album.userplaycount) {
-								origKingPlays = req.album.userplaycount;
-								origKingUser = user;
+					// Filter out known bot accounts
+					const botNames = ['UB3R-B0T', 'Tatsu', 'MonitoRSS', '.fmbot', 'JeopardyBot', 'Chuu', 'FMdaily', 'Untappdiscord', 
+									'Gamebot', 'Starboard', 'SnipeBot', 'GitBot', 'play-jeopardy', 'Elimina', 'FMcord Beta', 
+									'Banner Boi', 'Filmlinkd', 'the new fm', 'Snipe', 'makar fm', 'Readybot.io', 'feed1_dev', 'jeopardy!'];
+
+					// Get all valid user IDs (excluding bots) in a single array
+					const validUserIDs = gIDs.filter((id, index) => !botNames.includes(gUsers[index]));
+
+					// Fetch all users and their Last.fm usernames in one query
+					const users = await Users.findAll({
+						where: {
+							discordUserID: {
+								[Op.in]: validUserIDs
 							}
-							else {
-								origKingPlays = `0`;
-								origKingUser = user;
-								continue;
+						},
+						attributes: ['discordUserID', 'lastFMUsername']
+					});
+
+					// Debug log user processing results
+					await logToChannel(`${threadPrefix} 📊 Processing results:\n- Total plays: ${total}\n- Listeners: ${listeners}\n- Valid users processed: ${users.length}`);
+
+					// Log the list of Last.fm usernames being checked
+					const sortedUsernames = users.map(u => u.lastFMUsername).sort();
+					await logToChannel(`${threadPrefix} 🔍 Checking Last.fm usernames:\n${sortedUsernames.join(', ')}`);
+
+					let albumUrl = '';  // Store the first valid album URL we find
+
+					// Get album info for all users in parallel
+					const userPlaycounts = await Promise.all(
+						users.map(async user => {
+							try {
+								const req = await lib.album.getInfo(currentAlbum.artistName, currentAlbum.albumName, user.lastFMUsername);
+								if (!req.album || !req.album.userplaycount) {
+									return null;
+								}
+
+								const plays = parseInt(req.album.userplaycount);
+								if (plays === 0) {
+									return null;
+								}
+
+								// Store album URL from the first valid response
+								if (!albumUrl && req.album.url) {
+									albumUrl = req.album.url;
+								}
+
+								// Track original crown holder's plays
+								if (user.discordUserID === origKing) {
+									origKingPlays = plays.toString();
+									origKingUser = user.lastFMUsername;
+									await logToChannel(`${threadPrefix} 👑 Original crown holder ${origKingUser} has ${origKingPlays} plays`);
+								}
+
+								total += plays;
+								listeners++;
+
+								return {
+									name: gUsers[gIDs.indexOf(user.discordUserID)],
+									userID: user.discordUserID,
+									plays: plays.toString()
+								};
+							} catch (error) {
+								await logError(error, `Last.fm API request for ${user.lastFMUsername} - ${currentAlbum.artistName} - ${currentAlbum.albumName}`);
+								return null;
 							}
-						}
+						})
+					);
 
-						if (!req.album.userplaycount) continue;
-
-						total += parseInt(req.album.userplaycount);
-						if (parseInt(req.album.userplaycount) > 0) {
-							listeners++;
-						}
-
-						const data = {
-							name: gUsers[i],
-							userID: gIDs[i],
-							plays: req.album.userplaycount
-						};
-						know.push(data);
-					}
-
+					// Filter out null results and sort by plays
+					const know = userPlaycounts.filter(result => result !== null);
 					const sorted = know.sort(sortingFunc)[0];
 
-					if (hasCrown === null && sorted.plays !== `0`) {
+					// Debug log sorted results
+					if (sorted) {
+						await logToChannel(`${threadPrefix} 📈 Top listener: ${sorted.name} with ${sorted.plays} plays`);
+					} else {
+						await logToChannel(`${threadPrefix} ⚠️ No valid listeners found`);
+					}
+
+					if (hasCrown === null && sorted && sorted.plays !== `0`) {
+						await logToChannel(`${threadPrefix} 👑 Creating new crown for ${sorted.name}`);
 						await ACrowns.create({
-							guildID: albumList[0].guildID,
+							guildID: currentAlbum.guildID,
 							userID: sorted.userID,
-							albumName: data.album.name,
-							artistName: data.album.artist,
+							artistName: currentAlbum.artistName,
+							albumName: currentAlbum.albumName,
 							albumPlays: sorted.plays,
 							serverPlays: total,
 							serverListeners: listeners,
-							albumURL: data.album.url
+							albumURL: albumUrl
 						});
+						await logToChannel(`${threadPrefix} ✅ Crown created successfully`);
 					}
-
-
-					else if (hasCrown !== null) {
+					else if (hasCrown !== null && sorted) {
 						const userID = hasCrown.userID;
 						const isUser = await Users.findOne({
 							where: {
 								[Op.or]: [{ discordUserID: userID }, { discordUserID: sorted.userID }]
 							}
 						});
+
 						await ACrowns.update({
 							serverPlays: total,
 							serverListeners: listeners,
-							albumURL: data.album.url
-						},
-							{
+							albumURL: albumUrl
+						}, {
+							where: {
+								guildID: currentAlbum.guildID,
+								artistName: currentAlbum.artistName,
+								albumName: currentAlbum.albumName
+							}
+						});
+
+						if (!gIDs.includes(origKing) || parseInt(sorted.plays) > parseInt(hasCrown.albumPlays)) {
+							await ACrowns.update({
+								userID: sorted.userID,
+								albumPlays: sorted.plays
+							}, {
 								where: {
-									guildID: albumList[0].guildID,
-									albumName: data.album.name,
-									artistName: data.album.artist
+									guildID: currentAlbum.guildID,
+									artistName: currentAlbum.artistName,
+									albumName: currentAlbum.albumName
 								}
 							});
-						var plays = hasCrown.albumPlays;
-						if (!gIDs.includes(origKing)) {
-							try {
-								await ACrowns.update({
-									userID: sorted.userID,
-									albumPlays: sorted.plays
-								},
-									{
-										where: {
-											guildID: albumList[0].guildID,
-											albumName: data.album.name,
-											artistName: data.album.artist
-										}
-									});
-								const notifiable = await Notifs.findOne({
-									where: {
-										userID: userID
-									}
-								});
-								if (notifiable && isUser) client.emit(`crownTaken`, {
-									prevOwner: userID,
-									newOwner: sorted.userID,
-									guild: albumList[0].guildName,
-									artist: data.album.artist,
-									album: data.album.name
-								});
-								const notifiableW = await WNotifs.findOne({
-									where: {
-										userID: sorted.userID
-									}
-								});
-								if (notifiableW && isUser) client.emit(`crownWon`, {
-									prevOwner: userID,
-									newOwner: sorted.userID,
-									guild: albumList[0].guildName,
-									artist: data.album.artist,
-									album: data.album.name
-								});
-							}
-							catch (e) {
-								console.error(e);
-							}
-						}
-						else if (parseInt(sorted.plays) > parseInt(plays) || (parseInt(origKingPlays) != parseInt(plays) && parseInt(sorted.plays) > 0)) {
-							try {
-								var kingPlays = -1;
-								for (var tries = 0; tries < 10; tries++) {
-									var orig = await lib.album.getInfo(artistName, albumName, origKingUser);
-									if (parseInt(orig.album.userplaycount) > 1 || orig.album.userplaycount == `0`) {
-										kingPlays = parseInt(orig.album.userplaycount);
-										break;
-									}
-								}
-								if (kingPlays >= parseInt(sorted.plays)) {
-									sorted.plays = kingPlays;
-									sorted.userID = origKing;
-								}
-								if (kingPlays >= 0) {
-									await ACrowns.update({
-										userID: sorted.userID,
-										albumPlays: sorted.plays
-									},
-										{
-											where: {
-												guildID: albumList[0].guildID,
-												albumName: data.album.name,
-												artistName: data.album.artist
-											}
-										});
-									const notifiable = await Notifs.findOne({
-										where: {
-											userID: userID
-										}
-									});
-									if (notifiable && isUser) client.emit(`crownTaken`, {
-										prevOwner: userID,
-										newOwner: sorted.userID,
-										guild: albumList[0].guildName,
-										artist: data.album.artist,
-										album: data.album.name
-									});
-									const notifiableW = await WNotifs.findOne({
-										where: {
-											userID: sorted.userID
-										}
-									});
-									if (notifiableW && isUser) client.emit(`crownWon`, {
-										prevOwner: userID,
-										newOwner: sorted.userID,
-										guild: albumList[0].guildName,
-										artist: data.album.artist,
-										album: data.album.name
-									});
 
-								}
+							// Handle notifications
+							const notifiable = await Notifs.findOne({ where: { userID: userID } });
+							if (notifiable && isUser) {
+								client.emit(`crownTaken`, {
+									prevOwner: userID,
+									newOwner: sorted.userID,
+									guild: currentAlbum.guildName,
+									artist: currentAlbum.artistName,
+									album: currentAlbum.albumName
+								});
 							}
-							catch (e) {
-								console.error(e);
-								await AlbumQueue.destroy({
-									where: {
-										guildID: albumList[0].guildID,
-										artistName: albumList[0].artistName,
-										albumName: albumList[0].albumName
-									}
+
+							const notifiableW = await WNotifs.findOne({ where: { userID: sorted.userID } });
+							if (notifiableW && isUser) {
+								client.emit(`crownWon`, {
+									prevOwner: userID,
+									newOwner: sorted.userID,
+									guild: currentAlbum.guildName,
+									artist: currentAlbum.artistName,
+									album: currentAlbum.albumName
 								});
 							}
 						}
 					}
-					var time_after = Date.now();
-					var time_diff = time_after - time_before;
-					time_diff = time_diff.toString();
+
+					// Record processing time
+					const processingTime = Date.now();
 					await Time.create({
-						ms: time_diff,
-						isAlbum: `true`,
-						guildID: albumList[0].guildID
+						ms: processingTime.toString(),
+						isAlbum: 'true',
+						isArtist: 'false',
+						guildID: currentAlbum.guildID
 					});
 
-					var crownExists = await ACrowns.findOne({
-
-						where: {
-
-							artistName: data.album.artist,
-							albumName: data.album.name,
-							guildID: albumList[0].guildID
-
-						}
-
-					});
-
-					//console.log(crownExists);
-
-					if (crownExists != null) {
-
-						var newHolder = await fetchUser.usernameFromId(crownExists.userID);
-
-
+					// Update album record
+					if (hasCrown) {
+						const newHolder = await fetchUser.usernameFromId(hasCrown.userID);
 						await AlbumRecord.create({
-
-							artistName: data.album.artist,
-							albumName: data.album.name,
-							guildName: albumList[0].guildName,
-							prevOwner: albumList[0].crownHolder,
+							artistName: currentAlbum.artistName,
+							albumName: currentAlbum.albumName,
+							guildName: currentAlbum.guildName,
+							prevOwner: currentAlbum.crownHolder,
 							newOwner: newHolder,
-							prevPlays: albumList[0].crownPlays,
-							newPlays: crownExists.albumPlays
-
-
-						});
-
-
-					}
-
-
-					await AlbumQueue.destroy({
-						where: {
-							guildID: albumList[0].guildID,
-							artistName: albumList[0].artistName,
-							albumName: albumList[0].albumName
-						}
-					});
-
-					albumList = await AlbumQueue.findAll();
-					albumLength = albumList.length;
-					if (albumLength == 0) {
-						return message.reply(`the album crown queue is now empty!`);
-					}
-
-
-					//await sleep(30000);
-
-					await sleep(0);
-
-
-
-				} catch (e) {
-					if (e.name !== `SequelizeUniqueConstraintError`) {
-						console.error(e);
-						await AlbumQueue.destroy({
-							where: {
-								guildID: albumList[0].guildID,
-								artistName: albumList[0].artistName,
-								albumName: albumList[0].albumName
-							}
+							prevPlays: currentAlbum.crownPlays,
+							newPlays: hasCrown.albumPlays
 						});
 					}
+
+					// Log success
+					await logToChannel(
+						`${threadPrefix} ✅ Processed\n` +
+						`👥 Server: ${currentAlbum.guildName}\n` +
+						`👑 Previous Crown: ${currentAlbum.crownHolder || 'None'} (${currentAlbum.crownPlays || '0'} plays)\n` +
+						`📊 Remaining in queue: ${(await AlbumQueue.findAll()).length}`
+					);
+				} catch (error) {
+					await logError(error, `processing ${currentAlbum.artistName} - ${currentAlbum.albumName}`);
+					throw error; // Re-throw to let queue processor handle retry
 				}
 			}
 
-			albumList = await AlbumQueue.findAll();
-			albumLength = albumList.length;
-			if (albumLength == 0) {
-				return message.reply(`the album crown queue is now empty!`);
-			}
-
+			// Start the queue processor with error logging
+			processQueue({
+				queueModel: AlbumQueue,
+				processItem: processAlbum,
+				logToChannel: async (msg) => {
+					try {
+						await message.channel.send(msg);
+					} catch (err) {
+						await logError(err, 'sending queue message');
+					}
+				},
+				itemType: 'album',
+				client
+			}).catch(async err => {
+				await logError(err, 'queue processor crash');
+				await message.channel.send(`💥 Queue processor crashed. Check error logs for details. Restarting in 1 minute...`);
+				await sleep(60000);
+				processQueue({
+					queueModel: AlbumQueue,
+					processItem: processAlbum,
+					logToChannel,
+					itemType: 'album',
+					client
+				});
+			});
 		}
-
+	} catch (e) {
+		await logError(e, 'initialization');
+		return;
 	}
-
 };
 
 exports.help = {
