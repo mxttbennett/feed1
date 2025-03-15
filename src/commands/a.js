@@ -99,7 +99,7 @@ exports.run = async (client, message, args) => {
 
 	try {
 		// Import models
-		const [Users, ACrowns, Albums, Time] = ['Users', 'ACrowns', 'Albums', 'Time'].map(
+		const [Users, ACrowns, Albums, Time, Notifs, WNotifs] = ['Users', 'ACrowns', 'Albums', 'Time', 'Notifs', 'WNotifs'].map(
 			model => client.sequelize.import(`../models/${model}.js`)
 		);
 
@@ -114,17 +114,25 @@ exports.run = async (client, message, args) => {
 		let time_avg = 0;
 		if (times.length > 0) {
 			const time_sum = times.reduce((sum, t) => sum + parseFloat(t.ms), 0);
-			time_avg = (time_sum / times.length / 1000).toFixed(2);
+			time_avg = ((time_sum / times.length) / 1000).toFixed(2);
 		}
-
-		// Create initial embed with timing info
-		const initialEmbed = new MessageEmbed()
-			.setColor(message.member.displayColor)
-			.setDescription(`${message.guild.name}'s avg album crown check time: \`${time_avg} seconds\``);
-		msg = await message.channel.send({ embed: initialEmbed });
 
 		// Get artist and album names
 		let [artistName, albumName] = await getArtistAndAlbum(fetchUser, fetchTrack, lib, args);
+		
+		// Create initial loading embed
+		let loadingTitle = `L O A D I N G. . .`;
+		if (args.length === 0 && !await fetchUser.username()) {
+			loadingTitle += `\nNOTE: cannot fetch currently playing track. the last album scrobbled is being used.`;
+		}
+
+		const initialEmbed = new MessageEmbed()
+			.setColor(message.member.displayColor)
+			.setAuthor(artistName, `https://i.imgur.com/tOuSBYf.gif`)
+			.setTitle(loadingTitle)
+			.setDescription(message.guild.name + `'s avg album crown check time: \`` + time_avg + ` seconds\``)
+			.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
+		msg = await message.channel.send({ embed: initialEmbed });
 
 		// Start timing this request
 		const time_before = Date.now();
@@ -135,12 +143,12 @@ exports.run = async (client, message, args) => {
 			return;
 		}
 
+		message.react(`✅`);
+
 		const art_data = await lib.artist.getInfo(data.album.artist).catch(e => {
 			console.error('Artist info error:', e);
 			return { artist: { url: '' } };
 		});
-
-		message.react(`✅`);
 
 		const hasCrown = await ACrowns.findOne({
 			where: {
@@ -157,15 +165,14 @@ exports.run = async (client, message, args) => {
 			origKing = hasCrown.userID;
 		}
 
+		// Get guild members and setup progress tracking
 		var id_array = [];
 		var member_array = [];
 		var guild = await message.guild.members.fetch().then(function (data) {
-
 			for (const [id, member] of data) {
 				id_array.push(id);
 				member_array.push(member);
 			}
-
 		});
 
 		var i = 0;
@@ -184,26 +191,20 @@ exports.run = async (client, message, args) => {
 		var counter = 0;
 		var total = 0;
 		var listeners = 0;
+
 		for (var mem = 0; mem < member_array.length; mem++) {
 			var id = member_array[mem].id;
 			var member = member_array[mem];
 			const user = await fetchUser.usernameFromId(id);
 			if (!user) continue;
+			
 			count++;
 			if ((i >= 5) && (count % Math.floor(i / 5) == 0)) {
 				counter++;
-				if (counter + 1 == 2) {
-					await msg.react(`2️⃣`);
-				}
-				if (counter + 1 == 3) {
-					await msg.react(`3️⃣`);
-				}
-				if (counter + 1 == 4) {
-					await msg.react(`4️⃣`);
-				}
-				if (counter + 1 == 5) {
-					await msg.react(`5️⃣`);
-				}
+				if (counter + 1 == 2) await msg.react(`2️⃣`);
+				if (counter + 1 == 3) await msg.react(`3️⃣`);
+				if (counter + 1 == 4) await msg.react(`4️⃣`);
+				if (counter + 1 == 5) await msg.react(`5️⃣`);
 			}
 
 			var req = await lib.album.getInfo(artistName, albumName, user);
@@ -212,8 +213,7 @@ exports.run = async (client, message, args) => {
 				if (req.album.userplaycount) {
 					origKingPlays = req.album.userplaycount;
 					origKingUser = user;
-				}
-				else {
+				} else {
 					origKingPlays = `0`;
 					origKingUser = user;
 					continue;
@@ -234,6 +234,16 @@ exports.run = async (client, message, args) => {
 			};
 			know.push(data);
 		}
+
+		// Add random emoji at the end
+		if (i >= 5) {
+			try {
+				await msg.react(getRandomEmoji());
+			} catch (e) {
+				console.error(e);
+			}
+		}
+
 		// Giving a top-ranking listener in the guild his crown, if he still has none.
 		const sorted = know.sort(sortingFunc)[0];
 
@@ -388,7 +398,7 @@ exports.run = async (client, message, args) => {
 		const time_after = Date.now();
 		const time_diff = ((time_after - time_before) / 1000).toFixed(2);
 
-		// Update timing in database - use upsert instead of create
+		// Update timing in database
 		try {
 			await Time.upsert({
 				ms: (time_after - time_before).toString(),
@@ -403,15 +413,13 @@ exports.run = async (client, message, args) => {
 			if (i >= 5) {
 				// await msg.reactions.removeAll();
 			}
-			embed = new MessageEmbed()
+			const embed = new MessageEmbed()
 				.setColor(message.member.displayColor)
-				.setAuthor(data.album.artist + ` — ` + data.album.name, `https://i.imgur.com/tOuSBYf.gif`)
+				.setAuthor(data.album.artist, `https://i.imgur.com/tOuSBYf.gif`)
 				.setTitle(`No one in the server listens to \`` + data.album.artist + ` — ` + data.album.name + `\`.`)
-				.setThumbnail(data.album.image[2][`#text`])
 				.setDescription(message.guild.name + `'s avg album crown check time: \`` + time_avg + ` seconds\`\nthis time took: \`` + time_diff + ` seconds\``)
 				.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
-			var edit = await msg.edit({ embed });
-			return edit;
+			return await msg.edit({ embed });
 		}
 
 		if (i >= 5) {
@@ -495,22 +503,17 @@ exports.run = async (client, message, args) => {
 
 	catch (e) {
 		console.error(e);
+		const errorEmbed = new MessageEmbed()
+			.setColor(message.member.displayColor)
+			.setAuthor(`Oh no!`, `https://i.imgur.com/AyfxHoW.gif`)
+			.setTitle(`E R R O R. . .`)
+			.setDescription(`an unexpected error occurred. Last.fm may be experiencing issues.`)
+			.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
+			
 		if (msg) {
-			const embed = new MessageEmbed()
-				.setColor(message.member.displayColor)
-				.setAuthor('Oh no!', 'https://i.imgur.com/AyfxHoW.gif')
-				.setTitle('E R R O R. . .')
-				.setDescription('An unexpected error occurred. Last.fm may be experiencing issues.')
-				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
-			await msg.edit({ embed });
+			await msg.edit({ embed: errorEmbed });
 		} else {
-			const embed = new MessageEmbed()
-				.setColor(message.member.displayColor)
-				.setAuthor('Oh no!', 'https://i.imgur.com/AyfxHoW.gif')
-				.setTitle('E R R O R. . .')
-				.setDescription('An unexpected error occurred. Last.fm may be experiencing issues.')
-				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
-			await message.channel.send({ embed });
+			await message.channel.send({ embed: errorEmbed });
 		}
 	}
 };
