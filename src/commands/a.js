@@ -91,13 +91,13 @@ async function getAlbumInfo(artist, album, lib, message, client) {
 }
 
 exports.run = async (client, message, args) => {
-	const fetchUser = new fetchuser(client, message);
-	const fetchTrack = new fetchtrack(client, message);
-	const lib = new Library(client.config.lastFM.apikey);
-	let msg = null;
-	let know = [];
-
 	try {
+		const fetchUser = new fetchuser(client, message);
+		const fetchTrack = new fetchtrack(client, message);
+		const lib = new Library(client.config.lastFM.apikey);
+		let msg = null;
+		let know = [];
+
 		// Import models
 		const [Users, ACrowns, Albums, Time, Notifs, WNotifs] = ['Users', 'ACrowns', 'Albums', 'Time', 'Notifs', 'WNotifs'].map(
 			model => client.sequelize.import(`../models/${model}.js`)
@@ -248,7 +248,25 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		// Giving a top-ranking listener in the guild his crown, if he still has none.
+		// Add this BEFORE the if (!know) check
+		var time_after = Date.now();
+		var time_diff = time_after - time_before;
+		time_diff = (time_diff / 1000).toFixed(2);
+
+		// Now we can use time_diff in our embed
+		if (!know || know.length === 0) {
+			const embed = new MessageEmbed()
+				.setColor(message.member.displayColor)
+				.setAuthor(data.album.artist, 'https://i.imgur.com/tOuSBYf.gif')
+				.setTitle(`No one in the server listens to \`${data.album.name}\`.`)
+				.setDescription(message.guild.name + `'s avg album crown check time: \`${time_avg} seconds\`\nthis time took: \`${time_diff} seconds\``)
+				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
+			
+			var edit = await msg.edit({ embed });
+			return edit;
+		}
+
+		// Now do your sorting
 		const sorted = know.sort(sortingFunc)[0];
 		
 		// Add null check for sorted
@@ -403,15 +421,10 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		// End timing after crown is determined and before creating final embed
-		const time_after = Date.now();
-		const duration_ms = time_after - time_before;
-		const time_diff = (duration_ms / 1000).toFixed(2);
-
 		// Store just the crown check duration
 		try {
 			await Time.create({
-				ms: duration_ms,  // This is now just the crown check duration
+				ms: time_after - time_before,  // This is now just the crown check duration
 				isAlbum: 'true',
 				isArtist: 'false',
 				guildID: message.guild.id
@@ -420,17 +433,17 @@ exports.run = async (client, message, args) => {
 			console.error('Error saving timing:', e);
 		}
 
-		if (know.length === 0 || know.every(x => x.plays === `0`)) {
-			if (i >= 3) {
-				// await msg.reactions.removeAll();
-			}
+		if (know.length === 0 || know.every(k => k.plays === '0')) {
 			const embed = new MessageEmbed()
 				.setColor(message.member.displayColor)
-				.setAuthor(data.album.artist, `https://i.imgur.com/tOuSBYf.gif`)
-				.setTitle(`No one in the server listens to \`` + data.album.artist + ` — ` + data.album.name + `\`.`)
-				.setDescription(message.guild.name + `'s avg album crown check time: \`` + time_avg + ` seconds\`\nthis time took: \`` + time_diff + ` seconds\``)
-				.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
-			return await msg.edit({ embed });
+				.setAuthor(artistName, 'https://i.imgur.com/tOuSBYf.gif')
+				.setTitle(`No one in the server has listened to this album`)
+				.setDescription(`${artistName} — ${albumName}`)
+				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
+			
+			if (msg) await msg.edit({ embeds: [embed] });
+			else await message.channel.send({ embeds: [embed] });
+			return;
 		}
 
 		if (i >= 3) {
@@ -499,14 +512,8 @@ exports.run = async (client, message, args) => {
 			};
 			await func(offset);
 		}
-	} catch (e) {
-		console.error('Error in run:', e);
-		const embed = new MessageEmbed()
-			.setColor(message.member.displayColor)
-			.setAuthor(`Error`, 'https://i.imgur.com/AyfxHoW.gif')
-			.setTitle('Error')
-			.setDescription(`An error occurred while processing the command.\n\nPlease try again later or contact a server administrator.`)
-			.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
-		msg = await message.channel.send({ embed });
+	} catch (error) {
+		console.error('Error in a command:', error);
+		throw error; // Still throw the error for other unexpected cases
 	}
 };
