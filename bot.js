@@ -35,6 +35,37 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 20;
 const RECONNECT_INTERVAL = 5000; // 5 seconds
 
+// Store the original console.error
+const originalConsoleError = console.error;
+
+// Override console.error
+console.error = async function(...args) {
+  // Call original console.error first
+  originalConsoleError.apply(console, args);
+
+  try {
+    const channel = await client.channels.fetch(ERROR_CHANNEL_ID);
+    if (channel) {
+      const errorMessage = args.map(arg => {
+        if (arg instanceof Error) {
+          return `**Error:** ${arg.message}\n\`\`\`${arg.stack || 'No stack trace available'}\`\`\``;
+        }
+        return typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg);
+      }).join('\n');
+      
+      // Split message if it's too long for Discord
+      const MAX_LENGTH = 1900; // Discord has 2000 char limit, leaving some room for formatting
+      for (let i = 0; i < errorMessage.length; i += MAX_LENGTH) {
+        const chunk = errorMessage.slice(i, i + MAX_LENGTH);
+        await channel.send(chunk);
+      }
+    }
+  } catch (err) {
+    // Use original console.error to avoid infinite loop
+    originalConsoleError('Failed to send error to Discord:', err);
+  }
+};
+
 async function sendStatusMessage(message) {
   try {
     const channel = await client.channels.fetch(STATUS_CHANNEL_ID);
@@ -385,3 +416,35 @@ process.on('unhandledRejection', async (error) => {
   console.error('Unhandled Promise Rejection:', error);
   await sendErrorMessage(error);
 });
+
+// After the console.error override, add this:
+const originalStdoutWrite = process.stdout.write;
+const originalStderrWrite = process.stderr.write;
+
+// Intercept stderr writes
+process.stderr.write = function(chunk, encoding, callback) {
+  // Call original first
+  originalStderrWrite.apply(process.stderr, arguments);
+
+  const message = chunk instanceof Buffer ? chunk.toString() : chunk;
+
+  // Filter out certain types of messages you don't want to see
+  if (message.includes('Pango-WARNING') || 
+      message.includes('expect ugly output') ||
+      !message.trim()) {
+    return;
+  }
+
+  // Send to Discord
+  try {
+    const channel = client.channels.cache.get(ERROR_CHANNEL_ID);
+    if (channel) {
+      channel.send(`**stderr:** \`\`\`${message.substring(0, 1900)}\`\`\``)
+        .catch(err => originalConsoleError('Failed to send stderr to Discord:', err));
+    }
+  } catch (err) {
+    originalConsoleError('Failed to process stderr message:', err);
+  }
+
+  if (callback) callback();
+};
