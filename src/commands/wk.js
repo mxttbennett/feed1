@@ -81,7 +81,7 @@ exports.run = async (client, message, args) => {
 			return msg;
 		}
 
-		message.react(`✅`);
+		//message.react(`✅`);
 		//message.channel.startTyping();
 
 		var time = await Time.findAll({
@@ -98,9 +98,9 @@ exports.run = async (client, message, args) => {
 		if (time.length > 0) {
 			var time_sum = 0;
 			for (var t = 0; t < time.length; t++) {
-				time_sum += parseFloat(time[t].ms);
+				time_sum += parseInt(time[t].ms) / 1000;
 			}
-			time_avg = ((time_sum / time.length) / 1000).toFixed(2);
+			time_avg = (time_sum / time.length).toFixed(2);
 		}
 
 		if (lastScrobbled == 0) {
@@ -157,7 +157,7 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		if (i >= 5) {
+		if (i >= 3) {
 			await msg.react(`1️⃣`);
 		}
 
@@ -187,19 +187,13 @@ exports.run = async (client, message, args) => {
 			const user = await fetchUser.usernameFromId(id);
 			if (!user) continue;
 			count++;
-			if ((i >= 5) && (count % Math.floor(i / 5) == 0)) {
+			if ((i >= 3) && (count % Math.floor(i / 3) == 0)) {
 				counter++;
 				if (counter + 1 == 2) {
 					await msg.react(`2️⃣`);
 				}
 				if (counter + 1 == 3) {
 					await msg.react(`3️⃣`);
-				}
-				if (counter + 1 == 4) {
-					await msg.react(`4️⃣`);
-				}
-				if (counter + 1 == 5) {
-					await msg.react(`5️⃣`);
 				}
 			}
 
@@ -259,7 +253,7 @@ exports.run = async (client, message, args) => {
 		emoji_string = "🍓 🍎 🍉 🥝 🍍 🫐 🍌 🌽 🥭 🍈 🍕 🥕 🥓 🥫 🍜 🍨 🍭 🥨 🍰 ☕ 🍵 🍸 🍹 🧃 🍩 🌮 🍾 🧇 🍻 😎 🥰 🥵 🤯 😳 😏 😇 😱 🥸 💀 👻 👽 😈 🎭 🎹 🥁 🪘 🎷 🎺 🎸 🪕 🎻 🪗 🛰️ 🪃 🪀 🏓 🛹 🚀 🛸 ⚓ ⛵ 🏖️ 🏝️ 🏜️ 🌋 🌅 🌄 🌌 🐶 🐱 🦊 🐸 🐧 🐦 🐣 🦆 🦉 🦇 🐛 🦋 🐌 🐞 🐢 🦎 🦕 🐙 🦀 🐠 🦧 🐘 🦚 🦜 🦢 🐳 🦒 🦦 🦥 🦔 🌵 🍀 🍄 🪴 🌸 🐚 🌛 🌎 🪐 💫 ✨ 🌈 🌷 🌻 💿 📡 💎 ⚖️ 🧱 🧲 🔫 🧨 ⚰️ 🏺 🔮 🔭 💊 🧬 🦠 🎈 🎵 🍑 🧻 💯 ♻️ 👀 🤠 🤩 🗿 🥶 👹 👏 👑 💼 🧶 🎡 🌃 🥡 🪁 🏆 🚨 🚁 💸 💵 🧯 🕯️ 💉 🖍️ ⁉️ 🃏 🎴 🛡️ 💰 ⛩️ 🕵️ 🥷 🧙 🧙‍♀️ 🧙‍♂️ 🍒 🥩 💩 🎨 ✈️ 🪅 ❤️ 💙 💜 🚩"
 		emoji_list = emoji_string.split(" ");
 		rand_num = getRandomInt(0, emoji_list.length - 1);
-		if (i >= 5) {
+		if (i >= 3) {
 			try {
 				await msg.react(emoji_list[rand_num]);
 			}
@@ -405,7 +399,6 @@ exports.run = async (client, message, args) => {
 
 		var time_after = Date.now();
 		var time_diff = time_after - time_before;
-		time_diff = time_diff.toString();
 
 		try {
 			const existingTime = await Time.findOne({
@@ -433,13 +426,12 @@ exports.run = async (client, message, args) => {
 			}
 		} catch (e) {
 			console.error('Time tracking error:', e);
-			// Continue execution - don't let time tracking errors stop the command
 		}
 
-		time_diff = parseFloat((parseFloat(time_diff) / 1000).toFixed(2));
+		time_diff = (time_diff / 1000).toFixed(2);
 
 		if (know.length === 0 || know.every(x => x.plays === `0`)) {
-			if (i >= 5) {
+			if (i >= 3) {
 				// await msg.reactions.removeAll();
 			}
 			embed = new MessageEmbed()
@@ -464,7 +456,7 @@ exports.run = async (client, message, args) => {
 		}
 		*/
 
-		if (i >= 5) {
+		if (i >= 3) {
 			// await msg.reactions.removeAll();
 		}
 		know.sort(sortingFunc);

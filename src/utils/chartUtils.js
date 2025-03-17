@@ -315,6 +315,11 @@ function generateStatsText(authorId, sum, total, avg2, avg, newalbs, crowncount,
 async function processQueues(client, message, period) {
   const fetchUser = new fetchuser(client, message);
   const user = await fetchUser.username();
+  if (!user) {
+    console.error('No Last.fm username found for queue processing');
+    return;
+  }
+
   const albumArray = [];
   const artistArray = [];
   let page = message.content.split(' ')[1] || '1';
@@ -348,58 +353,56 @@ async function processQueues(client, message, period) {
       await sleep(10000);
     }
 
+    console.log(`Processing queues for ${artistArray.length} artists/albums`);
+
     // Import models
     const ArtistQueue = client.sequelize.import('../models/ArtistQueue.js');
     const AlbumQueue = client.sequelize.import('../models/AlbumQueue.js');
     const Crowns = client.sequelize.import('../models/Crowns.js');
     const ACrowns = client.sequelize.import('../models/ACrowns.js');
 
+    let artistQueueCount = 0;
+    let albumQueueCount = 0;
+
     // Process each artist/album pair
     for (let i = 0; i < artistArray.length; i++) {
-      // Check and create artist queue entry
-      const artistExists = await ArtistQueue.findOne({
-        where: {
-          guildID: message.guild.id,
-          artistName: artistArray[i]
-        }
-      });
-
-      if (!artistExists) {
-        const crownExists = await Crowns.findOne({
+      try {
+        // Check and create artist queue entry
+        const artistExists = await ArtistQueue.findOne({
           where: {
             guildID: message.guild.id,
             artistName: artistArray[i]
           }
         });
 
-        const lfmUsername = crownExists ? await fetchUser.usernameFromId(crownExists.userID) : '';
-        const crownPlays = crownExists ? crownExists.artistPlays : '0';
+        if (!artistExists) {
+          const crownExists = await Crowns.findOne({
+            where: {
+              guildID: message.guild.id,
+              artistName: artistArray[i]
+            }
+          });
 
-        await ArtistQueue.create({
-          guildID: message.guild.id,
-          guildName: message.guild.name,
-          guildUserIDs: gIDs,
-          guildUsers: gUsers,
-          userID: message.member.id,
-          userName: message.member.user.username,
-          artistName: artistArray[i],
-          chartType: period.substring(0, 1),
-          crownHolder: lfmUsername,
-          crownPlays: crownPlays
-        });
-      }
+          const lfmUsername = crownExists ? await fetchUser.usernameFromId(crownExists.userID) : '';
+          const crownPlays = crownExists ? crownExists.artistPlays : '0';
 
-      // Check and create album queue entry
-      const albumExists = await AlbumQueue.findOne({
-        where: {
-          guildID: message.guild.id,
-          artistName: artistArray[i],
-          albumName: albumArray[i]
+          await ArtistQueue.create({
+            guildID: message.guild.id,
+            guildName: message.guild.name,
+            guildUserIDs: gIDs,
+            guildUsers: gUsers,
+            userID: message.member.id,
+            userName: message.member.user.username,
+            artistName: artistArray[i],
+            chartType: period.substring(0, 1),
+            crownHolder: lfmUsername,
+            crownPlays: crownPlays
+          });
+          artistQueueCount++;
         }
-      });
 
-      if (!albumExists) {
-        const albumCrownExists = await ACrowns.findOne({
+        // Check and create album queue entry
+        const albumExists = await AlbumQueue.findOne({
           where: {
             guildID: message.guild.id,
             artistName: artistArray[i],
@@ -407,26 +410,46 @@ async function processQueues(client, message, period) {
           }
         });
 
-        const lfmUsername = albumCrownExists ? await fetchUser.usernameFromId(albumCrownExists.userID) : '';
-        const crownPlays = albumCrownExists ? albumCrownExists.albumPlays : '0';
+        if (!albumExists) {
+          const albumCrownExists = await ACrowns.findOne({
+            where: {
+              guildID: message.guild.id,
+              artistName: artistArray[i],
+              albumName: albumArray[i]
+            }
+          });
 
-        await AlbumQueue.create({
-          guildID: message.guild.id,
-          guildName: message.guild.name,
-          guildUserIDs: gIDs,
-          guildUsers: gUsers,
-          userID: message.member.id,
-          userName: message.member.user.username,
-          artistName: artistArray[i],
-          albumName: albumArray[i],
-          chartType: period.substring(0, 1),
-          crownHolder: lfmUsername,
-          crownPlays: crownPlays
-        });
+          const lfmUsername = albumCrownExists ? await fetchUser.usernameFromId(albumCrownExists.userID) : '';
+          const crownPlays = albumCrownExists ? albumCrownExists.albumPlays : '0';
+
+          await AlbumQueue.create({
+            guildID: message.guild.id,
+            guildName: message.guild.name,
+            guildUserIDs: gIDs,
+            guildUsers: gUsers,
+            userID: message.member.id,
+            userName: message.member.user.username,
+            artistName: artistArray[i],
+            albumName: albumArray[i],
+            chartType: period.substring(0, 1),
+            crownHolder: lfmUsername,
+            crownPlays: crownPlays
+          });
+          albumQueueCount++;
+        }
+      } catch (e) {
+        console.error(`Error processing queue entry ${i}:`, e);
+        // Continue with next entry even if one fails
+        continue;
       }
     }
+
+    console.log(`Queue processing complete. Added ${artistQueueCount} artists and ${albumQueueCount} albums to queues.`);
+
   } catch (e) {
     console.error('Error processing queues:', e);
+    // Emit command error event for proper logging
+    client.emit('commandError', 'queue', e, message);
   }
 }
 
@@ -439,6 +462,7 @@ async function generateChart(client, message, args, periodKey) {
   let vals = ['5', '10'];
   let [x, y] = [parseInt(vals[0]), parseInt(vals[1])];
   let trial = 0;
+  let chartSuccess = false;
 
   while (trial < 3) {
     try {
@@ -496,6 +520,7 @@ async function generateChart(client, message, args, periodKey) {
       }
 
       await message.channel.send({ embed });
+      chartSuccess = true;
       break;
 
     } catch (e) {
@@ -506,8 +531,13 @@ async function generateChart(client, message, args, periodKey) {
     }
   }
 
-  // Process queues after chart generation
-  await processQueues(client, message, periodConfig.period);
+  // Process queues regardless of chart generation success
+  try {
+    await processQueues(client, message, periodConfig.period);
+  } catch (e) {
+    console.error('Failed to process queues:', e);
+    client.emit('commandError', 'queue', e, message);
+  }
 }
 
 module.exports = {

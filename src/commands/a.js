@@ -91,13 +91,13 @@ async function getAlbumInfo(artist, album, lib, message, client) {
 }
 
 exports.run = async (client, message, args) => {
-	const fetchUser = new fetchuser(client, message);
-	const fetchTrack = new fetchtrack(client, message);
-	const lib = new Library(client.config.lastFM.apikey);
-	let msg = null;
-	let know = [];
-
 	try {
+		const fetchUser = new fetchuser(client, message);
+		const fetchTrack = new fetchtrack(client, message);
+		const lib = new Library(client.config.lastFM.apikey);
+		let msg = null;
+		let know = [];
+
 		// Import models
 		const [Users, ACrowns, Albums, Time, Notifs, WNotifs] = ['Users', 'ACrowns', 'Albums', 'Time', 'Notifs', 'WNotifs'].map(
 			model => client.sequelize.import(`../models/${model}.js`)
@@ -113,8 +113,16 @@ exports.run = async (client, message, args) => {
 
 		let time_avg = 0;
 		if (times.length > 0) {
-			const time_sum = times.reduce((sum, t) => sum + parseFloat(t.ms), 0);
-			time_avg = ((time_sum / times.length) / 1000).toFixed(2);
+			console.log('\nTime calculation debug:');
+			console.log('Raw times from database:', times.map(t => t.ms));
+			// Convert each time from milliseconds to seconds before averaging
+			const time_sum = times.reduce((sum, t) => sum + parseInt(t.ms), 0);
+			console.log('Sum of all times (ms):', time_sum);
+			console.log('Number of times:', times.length);
+			time_avg = (time_sum / times.length) / 1000; // Convert the final average to seconds
+			console.log('Calculated average (seconds):', time_avg);
+			time_avg = time_avg.toFixed(2);
+			console.log('Final formatted average:', time_avg);
 		}
 
 		// Get artist and album names
@@ -134,7 +142,7 @@ exports.run = async (client, message, args) => {
 			.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
 		msg = await message.channel.send({ embed: initialEmbed });
 
-		// Start timing this request
+		// Start timing this request - MOVED HERE before API calls start
 		const time_before = Date.now();
 
 		// Get album info
@@ -142,8 +150,6 @@ exports.run = async (client, message, args) => {
 		if (!data) {
 			return;
 		}
-
-		message.react(`✅`);
 
 		const art_data = await lib.artist.getInfo(data.album.artist).catch(e => {
 			console.error('Artist info error:', e);
@@ -183,7 +189,7 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		if (i >= 5) {
+		if (i >= 3) {
 			await msg.react(`1️⃣`);
 		}
 
@@ -199,12 +205,10 @@ exports.run = async (client, message, args) => {
 			if (!user) continue;
 			
 			count++;
-			if ((i >= 5) && (count % Math.floor(i / 5) == 0)) {
+			if ((i >= 3) && (count % Math.floor(i / 3) == 0)) {
 				counter++;
 				if (counter + 1 == 2) await msg.react(`2️⃣`);
 				if (counter + 1 == 3) await msg.react(`3️⃣`);
-				if (counter + 1 == 4) await msg.react(`4️⃣`);
-				if (counter + 1 == 5) await msg.react(`5️⃣`);
 			}
 
 			var req = await lib.album.getInfo(artistName, albumName, user);
@@ -236,7 +240,7 @@ exports.run = async (client, message, args) => {
 		}
 
 		// Add random emoji at the end
-		if (i >= 5) {
+		if (i >= 3) {
 			try {
 				await msg.react(getRandomEmoji());
 			} catch (e) {
@@ -244,14 +248,37 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		// Giving a top-ranking listener in the guild his crown, if he still has none.
+		// Add this BEFORE the if (!know) check
+		var time_after = Date.now();
+		var time_diff = time_after - time_before;
+		time_diff = (time_diff / 1000).toFixed(2);
+
+		// Now we can use time_diff in our embed
+		if (!know || know.length === 0) {
+			const embed = new MessageEmbed()
+				.setColor(message.member.displayColor)
+				.setAuthor(data.album.artist, 'https://i.imgur.com/tOuSBYf.gif')
+				.setTitle(`No one in the server listens to \`${data.album.name}\`.`)
+				.setDescription(message.guild.name + `'s avg album crown check time: \`${time_avg} seconds\`\nthis time took: \`${time_diff} seconds\``)
+				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
+			
+			var edit = await msg.edit({ embed });
+			return edit;
+		}
+
+		// Now do your sorting
 		const sorted = know.sort(sortingFunc)[0];
+		
+		// Add null check for sorted
+		if (!sorted) {
+			console.error('No valid sorted data found');
+			throw new Error('No valid data found for sorting');
+		}
 
 		var cc = 0;
-		emoji_string = "🍓 🍎 🍉 🥝 🍍 🫐 🍌 🌽 🥭 🍈 🍕 🥕 🥓 🥫 🍜 🍨 🍭 🥨 🍰 ☕ 🍵 🍸 🍹 🧃 🍩 🌮 🍾 🧇 🍻 😎 🥰 🥵 🤯 😳 😏 😇 😱 🥸 💀 👻 👽 😈 🎭 🎹 🥁 🪘 🎷 🎺 🎸 🪕 🎻 🪗 🛰️ 🪃 🪀 🏓 🛹 🚀 🛸 ⚓ ⛵ 🏖️ 🏝️ 🏜️ 🌋 🌅 🌄 🌌 🐶 🐱 🦊 🐸 🐧 🐦 🐣 🦆 🦉 🦇 🐛 🦋 🐌 🐞 🐢 🦎 🦕 🐙 🦀 🐠 🦧 🐘 🦚 🦜 🦢 🐳 🦒 🦦 🦥 🦔 🌵 🍀 🍄 🪴 🌸 🐚 🌛 🌎 🪐 💫 ✨ 🌈 🌷 🌻 💿 📡 💎 ⚖️ 🧱 🧲 🔫 🧨 ⚰️ 🏺 🔮 🔭 💊 🧬 🦠 🎈 🎵 🍑 🧻 💯 ♻️ 👀 🤠 🤩 🗿 🥶 👹 👏 👑 💼 🧶 🎡 🌃 🥡 🪁 🏆 🚨 🚁 💸 💵 🧯 🕯️ 💉 🖍️ ⁉️ 🃏 🎴 🛡️ 💰 ⛩️ 🕵️ 🥷 🧙 🧙‍♀️ 🧙‍♂️ 🍒 🥩 💩 🎨 ✈️ 🪅 ❤️ 💙 💜 🚩"
-		emoji_list = emoji_string.split(" ");
-		rand_num = getRandomInt(0, emoji_list.length - 1);
-		if (i >= 5) {
+		const emoji_list = "🍓 🍎 🍉 🥝 🍍 🫐 🍌 🌽 🥭 🍈 🍕 🥕 🥓 🥫 🍜 🍨 🍭 🥨 🍰 ☕ 🍵 🍸 🍹 🧃 🍩 🌮 🍾 🧇 🍻 😎 🥰 🥵 🤯 😳 😏 😇 😱 🥸 💀 👻 👽 😈 🎭 🎹 🥁 🪘 🎷 🎺 🎸 🪕 🎻 🪗 🛰️ 🪃 🪀 🏓 🛹 🚀 🛸 ⚓ ⛵ 🏖️ 🏝️ 🏜️ 🌋 🌅 🌄 🌌 🐶 🐱 🦊 🐸 🐧 🐦 🐣 🦆 🦉 🦇 🐛 🦋 🐌 🐞 🐢 🦎 🦕 🐙 🦀 🐠 🦧 🐘 🦚 🦜 🦢 🐳 🦒 🦦 🦥 🦔 🌵 🍀 🍄 🪴 🌸 🐚 🌛 🌎 🪐 💫 ✨ 🌈 🌷 🌻 💿 📡 💎 ⚖️ 🧱 🧲 🔫 🧨 ⚰️ 🏺 🔮 🔭 💊 🧬 🦠 🎈 🎵 🍑 🧻 💯 ♻️ 👀 🤠 🤩 🗿 🥶 👹 👏 👑 💼 🧶 🎡 🌃 🥡 🪁 🏆 🚨 🚁 💸 💵 🧯 🕯️ 💉 🖍️ ⁉️ 🃏 🎴 🛡️ 💰 ⛩️ 🕵️ 🥷 🧙 🧙‍♀️ 🧙‍♂️ 🍒 🥩 💩 🎨 ✈️ 🪅 ❤️ 💙 💜 🚩".split(" ");
+		const rand_num = getRandomInt(0, emoji_list.length - 1);
+		if (i >= 3) {
 			try {
 				await msg.react(emoji_list[rand_num]);
 			}
@@ -260,7 +287,7 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		if (hasCrown === null && sorted.plays > `0`) {
+		if (hasCrown === null && sorted && sorted.plays > `0`) {
 			await ACrowns.create({
 				guildID: message.guild.id,
 				userID: sorted.userID,
@@ -273,7 +300,7 @@ exports.run = async (client, message, args) => {
 			});
 		}
 
-		else if (hasCrown !== null) {
+		else if (hasCrown !== null && sorted) {
 			const userID = hasCrown.userID;
 			const isUser = await Users.findOne({
 				where: {
@@ -394,35 +421,32 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		// At the end of processing, calculate time taken
-		const time_after = Date.now();
-		const time_diff = ((time_after - time_before) / 1000).toFixed(2);
-
-		// Update timing in database
+		// Store just the crown check duration
 		try {
-			await Time.upsert({
-				ms: (time_after - time_before).toString(),
+			await Time.create({
+				ms: time_after - time_before,  // This is now just the crown check duration
 				isAlbum: 'true',
+				isArtist: 'false',
 				guildID: message.guild.id
 			});
 		} catch (e) {
 			console.error('Error saving timing:', e);
 		}
 
-		if (know.length === 0 || know.every(x => x.plays === `0`)) {
-			if (i >= 5) {
-				// await msg.reactions.removeAll();
-			}
+		if (know.length === 0 || know.every(k => k.plays === '0')) {
 			const embed = new MessageEmbed()
 				.setColor(message.member.displayColor)
-				.setAuthor(data.album.artist, `https://i.imgur.com/tOuSBYf.gif`)
-				.setTitle(`No one in the server listens to \`` + data.album.artist + ` — ` + data.album.name + `\`.`)
-				.setDescription(message.guild.name + `'s avg album crown check time: \`` + time_avg + ` seconds\`\nthis time took: \`` + time_diff + ` seconds\``)
-				.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
-			return await msg.edit({ embed });
+				.setAuthor(artistName, 'https://i.imgur.com/tOuSBYf.gif')
+				.setTitle(`No one in the server has listened to this album`)
+				.setDescription(`${artistName} — ${albumName}`)
+				.setFooter(`invoked by ${message.author.username}`, message.author.displayAvatarURL());
+			
+			if (msg) await msg.edit({ embeds: [embed] });
+			else await message.channel.send({ embeds: [embed] });
+			return;
 		}
 
-		if (i >= 5) {
+		if (i >= 3) {
 			// await msg.reactions.removeAll();
 		}
 		know.sort(sortingFunc);
@@ -431,7 +455,10 @@ exports.run = async (client, message, args) => {
 		const description = sortList
 			.slice(0, 10)
 			.filter(k => k.plays !== `0`)
-			.map(k => (parseInt(k.plays) != 1) ? `${++x}. ${k.name} → **${k.plays}** scrobbles (` + parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2)) + `%)` : `${++x}. ${k.name} → **${k.plays}** scrobble (` + parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2)) + `%)`)
+			.map(k => (parseInt(k.plays) != 1) ? 
+				`${++x}. ${k.name} → **${k.plays}** scrobbles (${parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2))}%)` : 
+				`${++x}. ${k.name} → **${k.plays}** scrobble (${parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2))}%)`
+			)
 			.join(`\n`);
 		embed = new MessageEmbed()
 			.setColor(message.member.displayColor)
@@ -461,7 +488,10 @@ exports.run = async (client, message, args) => {
 				const description = sortList
 					.slice(off, off + 10)
 					.filter(k => k.plays !== `0`)
-					.map(k => (parseInt(k.plays) != 1) ? `${++num}. ${k.name} → **${k.plays}** scrobbles (` + parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2)) + `%)` : `${++num}. ${k.name} → **${k.plays}** scrobble (` + parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2)) + `%)`)
+					.map(k => (parseInt(k.plays) != 1) ? 
+						`${++num}. ${k.name} → **${k.plays}** scrobbles (${parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2))}%)` : 
+						`${++num}. ${k.name} → **${k.plays}** scrobble (${parseFloat(((parseFloat(k.plays) / parseFloat(total)) * 100).toFixed(2))}%)`
+					)
 					.join(`\n`);
 				const embed = new MessageEmbed()
 					.setColor(message.member.displayColor)
@@ -480,50 +510,10 @@ exports.run = async (client, message, args) => {
 					)
 				await msg.edit({ embed });
 			};
-			const toFront = () => {
-				if (page !== length) {
-					offset += 10, page++;
-					func(offset);
-				}
-			};
-			const toBack = () => {
-				if (page !== 1) {
-					offset -= 10, page--;
-					func(offset);
-				}
-			};
-			const emptyFunc = () => {
-			};
-			await rl.setKey(client.snippets.arrowLeft, toBack);
-			await rl.setKey(client.snippets.arrowRight, toFront);
-			await rl.setKey(emoji_list[rand_num], emptyFunc);
+			await func(offset);
 		}
-
+	} catch (error) {
+		console.error('Error in a command:', error);
+		throw error; // Still throw the error for other unexpected cases
 	}
-
-	catch (e) {
-		console.error(e);
-		const errorEmbed = new MessageEmbed()
-			.setColor(message.member.displayColor)
-			.setAuthor(`Oh no!`, `https://i.imgur.com/AyfxHoW.gif`)
-			.setTitle(`E R R O R. . .`)
-			.setDescription(`an unexpected error occurred. Last.fm may be experiencing issues.`)
-			.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
-			
-		if (msg) {
-			await msg.edit({ embed: errorEmbed });
-		} else {
-			await message.channel.send({ embed: errorEmbed });
-		}
-	}
-};
-
-exports.help = {
-	name: `a`,
-	description: `**A**LBUM: Checks if anyone in a guild listens to a certain album. If ` +
-		`no album is defined, the bot will try to look up the album you are ` +
-		`currently listening to.`,
-	usage: `a <artist name> | <album name>`,
-	notes: `This feature might be quite slow, because it sends a lot of API ` +
-		`requests. Also, it only works in a guild. Similar to the -wk command.`
 };
