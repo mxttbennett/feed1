@@ -340,6 +340,9 @@ exports.run = async (client, message, args) => {
 					const threadPrefix = `[${currentAlbum.artistName} - ${currentAlbum.albumName}]`;
 					let statusMsg = await message.channel.send(`${threadPrefix} Processing...`);
 
+					// Start timing the process
+					const processStartTime = Date.now();
+
 					// Get all valid user IDs (excluding bots) in a single array
 					const gIDs = currentAlbum.guildUserIDs.split(`,`);
 					const gUsers = currentAlbum.guildUsers.split(`~,~`);
@@ -485,10 +488,12 @@ exports.run = async (client, message, args) => {
 						}
 					}
 
+					// Calculate processing duration at the end
+					const processDuration = Date.now() - processStartTime;
+
 					// Record processing time
-					const processingTime = Date.now();
 					await Time.create({
-						ms: processingTime.toString(),
+						ms: processDuration.toString(), // Store the actual duration, not the timestamp
 						isAlbum: 'true',
 						isArtist: 'false',
 						guildID: currentAlbum.guildID
@@ -516,7 +521,8 @@ exports.run = async (client, message, args) => {
 						`👑 Previous Crown: ${currentAlbum.crownHolder || 'None'} (${currentAlbum.crownPlays || '0'} plays)\n` +
 						`📊 Processed ${users.length} users | ${listeners} listeners | ${total} total plays\n` +
 						`${sorted ? `👑 New Crown: ${sorted.name} (${sorted.plays} plays)\n` : ''}` +
-						`📝 Remaining in queue: ${remainingCount}`
+						`📝 Remaining in queue: ${remainingCount}\n` +
+						`⏱️ Processing time: ${(processDuration / 1000).toFixed(2)}s`
 					);
 
 				} catch (error) {
