@@ -6,6 +6,6 @@ exports.run = async (client, message, args) => {
 
 exports.help = {
   name: 'w',
-  description: '5x10 weekly chart',
+  description: '5x6 weekly chart',
   usage: 'w <page #>'
 };
