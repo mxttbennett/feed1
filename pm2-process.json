@@ -1,7 +1,7 @@
 {
     "script": "bot.js",
 	"watch": true,
-    "ignore_watch": ["node_modules", "art_imgs", ".data"],
+    "ignore_watch": ["node_modules", "art_imgs", ".data", ".git"],
     "watch_options": {
         "followSymlinks": false
     },
