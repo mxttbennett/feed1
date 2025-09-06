@@ -459,7 +459,7 @@ async function generateChart(client, message, args, periodKey) {
   const ACrowns = client.sequelize.import('../models/ACrowns.js');
   const periodConfig = PERIODS[periodKey];
   
-  let vals = ['5', '10'];
+  let vals = periodKey === 'weekly' ? ['5', '6'] : ['5', '10'];
   let [x, y] = [parseInt(vals[0]), parseInt(vals[1])];
   let trial = 0;
   let chartSuccess = false;
@@ -475,9 +475,9 @@ async function generateChart(client, message, args, periodKey) {
       let data;
       if (!page || parseInt(page) <= 0) {
         page = '1';
-        data = await lib.user.getTopAlbums(user, periodConfig.period, '50', '1');
+        data = await lib.user.getTopAlbums(user, periodConfig.period, periodKey === 'weekly' ? '30' : '50', '1');
       } else {
-        data = await lib.user.getTopAlbums(user, periodConfig.period, '50', page);
+        data = await lib.user.getTopAlbums(user, periodConfig.period, periodKey === 'weekly' ? '30' : '50', page);
       }
 
       // Calculate date range

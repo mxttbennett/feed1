@@ -142,7 +142,7 @@ exports.run = async (client, message, args) => {
 			.setFooter(`invoked by ` + message.author.username, message.author.displayAvatarURL());
 		msg = await message.channel.send({ embed: initialEmbed });
 
-		// Start timing this request - MOVED HERE before API calls start
+		// Start timing this request
 		const time_before = Date.now();
 
 		// Get album info
@@ -248,7 +248,7 @@ exports.run = async (client, message, args) => {
 			}
 		}
 
-		// Add this BEFORE the if (!know) check
+		// Calculate duration
 		var time_after = Date.now();
 		var time_diff = time_after - time_before;
 		time_diff = (time_diff / 1000).toFixed(2);
