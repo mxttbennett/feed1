@@ -65,7 +65,8 @@ export class CrownJobWorker {
     hooks: WorkerHooks = {},
   ) {
     this.sleep = hooks.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
-    this.reportError = hooks.reportError ?? (async (e, c) => console.error(`[${c}]`, e));
+    this.reportError =
+      hooks.reportError ?? ((e, c) => Promise.resolve(console.error(`[${c}]`, e)));
   }
 
   /** Starts the loop; calling again while running is a no-op. */

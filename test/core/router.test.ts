@@ -16,7 +16,7 @@ function testCommand(overrides: Partial<Command> = {}): Command & { calls: numbe
     },
     ...overrides,
   };
-  return cmd as Command & { calls: number };
+  return cmd;
 }
 
 describe('Router', () => {

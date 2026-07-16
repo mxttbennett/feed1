@@ -63,8 +63,7 @@ describe('CrownJobWorker', () => {
       },
     } as unknown as CrownService;
 
-    let w!: CrownJobWorker;
-    w = new CrownJobWorker(db, fakeClient(), service, { sleep: drainingSleep(() => w, db) });
+    const w: CrownJobWorker = new CrownJobWorker(db, fakeClient(), service, { sleep: drainingSleep(() => w, db) });
     w.start();
     await vi.waitFor(() => expect(db.select().from(schema.crownJobs).all()).toHaveLength(0));
     expect(scans).toEqual(['X']);
@@ -82,8 +81,7 @@ describe('CrownJobWorker', () => {
       },
     } as unknown as CrownService;
 
-    let w!: CrownJobWorker;
-    w = new CrownJobWorker(db, fakeClient(), service, { sleep: drainingSleep(() => w, db) });
+    const w: CrownJobWorker = new CrownJobWorker(db, fakeClient(), service, { sleep: drainingSleep(() => w, db) });
     w.start();
     w.start();
     await vi.waitFor(() => expect(db.select().from(schema.crownJobs).all()).toHaveLength(0));
@@ -103,8 +101,7 @@ describe('CrownJobWorker', () => {
       },
     } as unknown as CrownService;
 
-    let w!: CrownJobWorker;
-    w = new CrownJobWorker(db, fakeClient(), service, {
+    const w: CrownJobWorker = new CrownJobWorker(db, fakeClient(), service, {
       sleep: drainingSleep(() => w, db),
       reportError: async (_e, ctx) => {
         reported.push(ctx);
@@ -129,8 +126,7 @@ describe('CrownJobWorker', () => {
       },
     } as unknown as CrownService;
 
-    let w!: CrownJobWorker;
-    w = new CrownJobWorker(db, fakeClient(), service, {
+    const w: CrownJobWorker = new CrownJobWorker(db, fakeClient(), service, {
       sleep: drainingSleep(() => w, db),
       reportError: async (_e, ctx) => {
         reported.push(ctx);

@@ -19,4 +19,11 @@ export default tseslint.config(
     files: ['**/*.js'],
     ...tseslint.configs.disableTypeChecked,
   },
+  {
+    files: ['test/**'],
+    rules: {
+      // async stubs without awaits are idiomatic in fakes
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
 );

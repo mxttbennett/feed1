@@ -21,7 +21,7 @@ export interface FakeApp extends AppContext {
 }
 
 export function makeFakeApp(commands: Command[] = []): FakeApp {
-  const config = loadConfig({ ...TEST_ENV } as NodeJS.ProcessEnv);
+  const config = loadConfig({ ...TEST_ENV });
   const db = createDb(':memory:');
   runMigrations(db);
   const registry = new CommandRegistry();
@@ -124,6 +124,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
       id: opts.channelId ?? 'channel-1',
       send: sent,
       isTextBased: () => true,
+      isSendable: () => true,
     },
     channelId: opts.channelId ?? 'channel-1',
     mentions: {
