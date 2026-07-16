@@ -95,6 +95,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
         return Promise.resolve(makeSentMessage());
       },
       react: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
     };
   }
 
