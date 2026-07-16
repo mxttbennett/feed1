@@ -2,7 +2,7 @@
 
 A Last.fm Discord bot — the TypeScript rewrite of FMcord. Now-playing, top-album charts,
 who-knows rankings, a full crowns system, and RateYourMusic link tooling, on prefix
-commands (`&fm`, `&w`, `&wk`, ...).
+commands (`-fm`, `-w`, `-wk`, ...).
 
 The pre-rewrite JavaScript codebase is preserved at the git tag [`legacy`](../../tree/legacy).
 
@@ -30,4 +30,4 @@ See [deploy/README.md](deploy/README.md) for the one-time setup.
 
 ## Commands
 
-Run `&help` for the generated list; `&help <command>` for details, aliases, and usage.
+Run `-help` for the generated list; `-help <command>` for details, aliases, and usage.

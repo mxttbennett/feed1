@@ -14,7 +14,7 @@ import { Client, GatewayIntentBits, type Message, type TextChannel } from 'disco
 const TESTER_TOKEN = process.env.SMOKE_TESTER_TOKEN;
 const GUILD_ID = process.env.SMOKE_GUILD_ID;
 const CHANNEL_ID = process.env.SMOKE_CHANNEL_ID;
-const PREFIX = process.env.PREFIX ?? '&';
+const PREFIX = process.env.PREFIX ?? '-';
 const REPLY_TIMEOUT_MS = 20_000;
 
 if (!TESTER_TOKEN || !GUILD_ID || !CHANNEL_ID) {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
-  PREFIX: z.string().min(1).default('&'),
+  PREFIX: z.string().min(1).default('-'),
   OWNER_ID: z.string().min(1),
   ERROR_CHANNEL_ID: z.string().optional(),
   STATUS_CHANNEL_ID: z.string().optional(),
