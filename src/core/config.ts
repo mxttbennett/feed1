@@ -10,6 +10,7 @@ const envSchema = z.object({
   LASTFM_API_KEY: z.string().min(1),
   DB_PATH: z.string().default('.data/feed1.sqlite'),
   CHART_QUEUE_PAGE_OVERRIDES: z.string().default(''),
+  SMOKE_ALLOW_BOT_ID: z.string().optional(),
 });
 
 export interface Config {
@@ -22,6 +23,8 @@ export interface Config {
   dbPath: string;
   /** guildId -> max chart-queue pages (0 = unlimited); absent guilds use DEFAULT_CHART_QUEUE_PAGES */
   chartQueuePageOverrides: Map<string, number>;
+  /** bot user id allowed to invoke commands (live smoke tester); never set in production */
+  smokeAllowBotId: string | undefined;
 }
 
 export const DEFAULT_CHART_QUEUE_PAGES = 5;
@@ -53,5 +56,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     lastfmApiKey: e.LASTFM_API_KEY,
     dbPath: e.DB_PATH,
     chartQueuePageOverrides: overrides,
+    smokeAllowBotId: e.SMOKE_ALLOW_BOT_ID,
   };
 }

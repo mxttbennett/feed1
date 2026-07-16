@@ -11,7 +11,7 @@ export class Router {
 
   async handle(message: Message): Promise<void> {
     const { config, registry, snippets, errors } = this.app;
-    if (message.author.bot) return;
+    if (message.author.bot && message.author.id !== config.smokeAllowBotId) return;
     if (!message.content.startsWith(config.prefix)) return;
 
     const parts = message.content.slice(config.prefix.length).trim().split(/ +/);
