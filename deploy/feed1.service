@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=feed1
+User=ubuntu
 WorkingDirectory=/opt/feed1
 EnvironmentFile=/opt/feed1/.env
 ExecStart=/usr/bin/node dist/index.js
