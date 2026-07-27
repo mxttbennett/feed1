@@ -48,7 +48,7 @@ jobs:
             mkdir -p "$APP/.data/backups"
             cp "$APP/.data/feed1.sqlite" "$APP/.data/backups/predeploy_$(date +%Y%m%dT%H%M%S).sqlite"
           fi
-          rsync -a --delete --exclude '.data' --exclude '.env' --exclude 'node_modules' "$APP/incoming/" "$APP/"
+          rsync -a --delete --exclude '.data' --exclude '.env' --exclude 'node_modules' --exclude 'incoming' "$APP/incoming/" "$APP/"
           cd "$APP"
           npm ci --omit=dev
           sudo systemctl start feed1
