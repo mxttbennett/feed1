@@ -1,6 +1,6 @@
 # feed1
 
-A Last.fm Discord bot — the TypeScript rewrite of FMcord. Now-playing, top-album charts,
+A Last.fm Discord bot written in TypeScript. Now-playing, top-album charts,
 who-knows rankings, a full crowns system, and RateYourMusic link tooling, on prefix
 commands (`-fm`, `-w`, `-wk`, ...).
 
@@ -25,7 +25,7 @@ npm run dev
 
 ## Deployment
 
-GitHub Actions deploys `master` to an Oracle Cloud free-tier VM over SSH.
+GitHub Actions deploys `main` to an Oracle Cloud free-tier VM over SSH.
 See [deploy/README.md](deploy/README.md) for the one-time setup.
 
 ## Commands

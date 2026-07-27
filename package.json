@@ -1,7 +1,7 @@
 {
   "name": "feed1",
   "version": "2.0.0",
-  "description": "feed1 — a Last.fm Discord bot (rewrite of FMcord)",
+  "description": "feed1 — a Last.fm Discord bot",
   "type": "module",
   "main": "dist/index.js",
   "engines": {

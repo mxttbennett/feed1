@@ -45,5 +45,5 @@ cat <<'NEXT'
 2. Allow the deploy user to restart the service without a password (visudo):
      ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl stop feed1, /usr/bin/systemctl start feed1, /usr/bin/systemctl restart feed1
 3. Set GitHub repo secrets: DEPLOY_HOST, DEPLOY_USER=ubuntu, DEPLOY_SSH_KEY, DEPLOY_PATH=/opt/feed1
-4. Push to master — the deploy workflow does the rest.
+4. Push to main — the deploy workflow does the rest.
 NEXT
