@@ -1,7 +1,8 @@
-import { EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
 import type { Command } from '../core/command.js';
 import { disableCommand, enableCommand } from '../core/disables.js';
 import { sendable } from '../core/channel.js';
+import { parseLogsArgs, readLogs } from '../ops/logs.js';
 
 const PROTECTED = new Set(['enable', 'disable', 'help']);
 
@@ -131,6 +132,43 @@ const restart: Command = {
   },
 };
 
+const logs: Command = {
+  name: 'logs',
+  description:
+    'Shows recent bot logs from journald. `-e` for errors only, `-n <count>` for how many ' +
+    'lines (default 10, max 500). Owner only.',
+  usage: 'logs [-e] [-n <count>]',
+  hidden: true,
+  ownerOnly: true,
+  guildOnly: false,
+  async run({ message, args }) {
+    const opts = parseLogsArgs(args);
+    let lines: string[];
+    try {
+      lines = await readLogs(opts);
+    } catch (error) {
+      return message.reply(
+        `couldn't read logs: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    const kind = opts.errorsOnly ? 'error ' : '';
+    if (lines.length === 0) {
+      return message.reply(`no ${kind}log lines found.`);
+    }
+
+    const body = lines.join('\n');
+    const header = `last ${lines.length} ${kind}log line${lines.length === 1 ? '' : 's'}`;
+    if (body.length <= 1850) {
+      return message.reply(`${header}:\n\`\`\`\n${body}\n\`\`\``);
+    }
+    const file = new AttachmentBuilder(Buffer.from(body, 'utf8'), {
+      name: `feed1-${opts.errorsOnly ? 'errors' : 'logs'}.txt`,
+    });
+    return message.reply({ content: `${header} (attached):`, files: [file] });
+  },
+};
+
 export const adminCommands: Command[] = [
   makeToggle('disable'),
   makeToggle('enable'),
@@ -138,4 +176,5 @@ export const adminCommands: Command[] = [
   ping,
   botinfo,
   restart,
+  logs,
 ];
