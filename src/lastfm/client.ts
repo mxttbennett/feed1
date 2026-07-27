@@ -126,13 +126,15 @@ export class LastfmClient {
   }
 
   getArtistInfo(artist: string, username?: string): Promise<ArtistInfo> {
-    const params: Record<string, string> = { artist };
+    // autocorrect maps variants ("the grateful dead") to the canonical artist
+    // ("Grateful Dead") so crowns key on one name instead of splitting.
+    const params: Record<string, string> = { artist, autocorrect: '1' };
     if (username !== undefined) params.username = username;
     return this.request('artist.getinfo', params);
   }
 
   getAlbumInfo(artist: string, album: string, username?: string): Promise<AlbumInfo> {
-    const params: Record<string, string> = { artist, album };
+    const params: Record<string, string> = { artist, album, autocorrect: '1' };
     if (username !== undefined) params.username = username;
     return this.request('album.getinfo', params);
   }
