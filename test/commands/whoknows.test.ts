@@ -36,10 +36,23 @@ function guildWithMembers(fake: FakeMessage, ids: string[]) {
   const collection = new Collection(
     ids.map((id) => [id, { user: { id, bot: false, tag: `${id}#0`, username: id } }]),
   );
-  (fake.message as unknown as { guild: { id: string; name: string; members: unknown } }).guild = {
+  const cache = new Collection<string, unknown>();
+  const members = {
+    cache,
+    fetch: () => {
+      for (const [id, m] of collection) cache.set(id, m);
+      return Promise.resolve(collection);
+    },
+  };
+  (
+    fake.message as unknown as {
+      guild: { id: string; name: string; members: unknown; memberCount: number };
+    }
+  ).guild = {
     id: 'guild-1',
     name: 'Test Guild',
-    members: { fetch: () => Promise.resolve(collection) },
+    members,
+    memberCount: ids.length,
   };
 }
 
