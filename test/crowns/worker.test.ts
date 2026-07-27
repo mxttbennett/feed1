@@ -17,17 +17,20 @@ function makeDb() {
 function fakeClient(): Client {
   return {
     guilds: {
-      fetch: () =>
-        Promise.resolve({
+      fetch: () => {
+        const cache = new Collection<string, unknown>([
+          ['u1', { user: { id: 'u1', bot: false, tag: 'u1#0' } }],
+        ]);
+        return Promise.resolve({
           id: 'g1',
           name: 'Test Guild',
+          memberCount: cache.size,
           members: {
-            fetch: () =>
-              Promise.resolve(
-                new Collection([['u1', { user: { id: 'u1', bot: false, tag: 'u1#0' } }]]),
-              ),
+            cache,
+            fetch: () => Promise.resolve(cache),
           },
-        }),
+        });
+      },
     },
   } as unknown as Client;
 }
