@@ -16,7 +16,7 @@
 
 ```sh
 ssh ubuntu@<vm-ip>
-git clone https://github.com/mxttbennett/FMcord.git /tmp/feed1-src   # or scp the deploy/ dir
+git clone https://github.com/mxttbennett/feed1.git /tmp/feed1-src   # or scp the deploy/ dir
 sudo bash /tmp/feed1-src/deploy/provision.sh
 ```
 
@@ -40,7 +40,7 @@ Then:
 
 ## 3. Every deploy after that
 
-Push to `master`. The `deploy` workflow tests, builds, stops the service, backs up the
+Push to `main`. The `deploy` workflow tests, builds, stops the service, backs up the
 SQLite DB, syncs the new build, installs production deps, and restarts. Migrations run
 automatically at app startup.
 

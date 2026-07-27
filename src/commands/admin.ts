@@ -109,7 +109,7 @@ const botinfo: Command = {
     const client = message.client;
     const embed = new EmbedBuilder()
       .setTitle('feed1')
-      .setDescription('a Last.fm Discord bot — rewrite of FMcord')
+      .setDescription('a Last.fm Discord bot')
       .addFields(
         { name: 'servers', value: String(client.guilds.cache.size), inline: true },
         { name: 'uptime', value: `${Math.floor(process.uptime() / 60)} min`, inline: true },
