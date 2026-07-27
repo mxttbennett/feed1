@@ -1,35 +1,50 @@
 {
-  "name": "fmcord",
-  "version": "1.4.8",
-  "description": "A Discord bot with Last.fm utilities.",
-  "main": "bot.js",
-  "scripts": {
-    "start": "node bot",
-    "lint": "eslint src *.js",
-    "lint-fix": "eslint src *.js --fix",
-    "test": "npm run lint",
-    "migrate": "sequelize-cli db:migrate",
-    "migrate:undo": "sequelize-cli db:migrate:undo"
+  "name": "feed1",
+  "version": "2.0.0",
+  "description": "feed1 — a Last.fm Discord bot (rewrite of FMcord)",
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22"
   },
-  "author": "Kometh",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "tsx test/live/smoke.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate"
+  },
   "license": "MIT",
   "dependencies": {
-    "canvas": "^2.6.1",
-    "csv-parse": "^5.6.0",
-    "dblapi.js": "^2.4.1",
-    "discord.js": "^12.4.1",
-    "express": "^4.17.1",
-    "npm-check-updates": "^4.1.2",
-    "pm2": "^4.5.0",
-    "sequelize": "^5.22.3",
-    "shorturl": "0.0.3",
-    "shorturl-2": "0.0.7",
-    "sqlite3": "^4.2.0",
-    "tinyurl": "^1.1.7",
-    "turl": "^1.1.2"
+    "better-sqlite3": "^12.2.0",
+    "canvas": "^3.1.2",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.0",
+    "drizzle-orm": "^0.44.3",
+    "zod": "^4.0.5"
   },
   "devDependencies": {
-    "@sequelize/cli": "^7.0.0-alpha.44",
-    "eslint": "^6.8.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^24.0.0",
+    "drizzle-kit": "^0.31.4",
+    "eslint": "^9.31.0",
+    "nock": "^14.0.5",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.37.0",
+    "vitest": "^3.2.4"
+  },
+  "allowScripts": {
+    "esbuild@0.18.20": true,
+    "esbuild@0.25.12": true,
+    "esbuild@0.28.1": true,
+    "better-sqlite3@12.11.1": true,
+    "canvas@3.2.3": true
   }
 }

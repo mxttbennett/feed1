@@ -1,0 +1,19 @@
+[Unit]
+Description=feed1 Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=feed1
+WorkingDirectory=/opt/feed1
+EnvironmentFile=/opt/feed1/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+# migrations run at app startup, so a plain restart is a full deploy step
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
