@@ -1,0 +1,57 @@
+name: deploy
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run
+      - run: npm run build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Stage and rsync build to server
+        run: |
+          mkdir -p stage
+          cp -r dist drizzle images deploy package.json package-lock.json NotoSansCJKjp-Regular.otf stage/
+          ssh -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "mkdir -p '${{ secrets.DEPLOY_PATH }}/incoming'"
+          rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" \
+            stage/ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_PATH }}/incoming/"
+
+      - name: Stop service, back up DB, swap in build, restart
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'EOF'
+          set -euo pipefail
+          APP="${{ secrets.DEPLOY_PATH }}"
+          sudo systemctl stop feed1 || true
+          if [ -f "$APP/.data/feed1.sqlite" ]; then
+            mkdir -p "$APP/.data/backups"
+            cp "$APP/.data/feed1.sqlite" "$APP/.data/backups/predeploy_$(date +%Y%m%dT%H%M%S).sqlite"
+          fi
+          rsync -a --delete --exclude '.data' --exclude '.env' --exclude 'node_modules' "$APP/incoming/" "$APP/"
+          cd "$APP"
+          npm ci --omit=dev
+          sudo systemctl start feed1
+          sleep 5
+          systemctl is-active feed1
+          EOF
