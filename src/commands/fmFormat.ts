@@ -5,8 +5,7 @@ export const CROWN_GIF_DEFAULT = 'https://i.imgur.com/GBuQOhn.gif';
 export const CROWN_GIF_OWN = 'https://i.imgur.com/bCeKwDd.gif';
 export const CROWN_GIF_OTHER = 'https://i.imgur.com/Qgo8myA.gif';
 
-export const NOT_PLAYING_FOOTER =
-  'cannot fetch currently playing track.\nthis is the last track scrobbled.';
+export const NOT_PLAYING_NOTE = 'not playing → showing last scrobble';
 export const LASTFM_DOWN_REPLY =
   'an error occurred. Last.fm may be experiencing issues at the moment.';
 

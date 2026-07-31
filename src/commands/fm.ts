@@ -14,7 +14,7 @@ import {
   CROWN_GIF_OWN,
   LASTFM_DOWN_REPLY,
   LOADING_GIF,
-  NOT_PLAYING_FOOTER,
+  NOT_PLAYING_NOTE,
   escapeAsterisks,
   fmDescription,
   rankLine,
@@ -139,9 +139,13 @@ export const fm: Command = {
     const artist = track.artist['#text'];
     const album = track.album['#text'];
 
+    // trails every footer, so a stale track is flagged from the first render onward
+    const note = nowPlaying ? '' : NOT_PLAYING_NOTE;
+    const withNote = (text: string) => (note ? `${text}\n${note}` : text);
+
     // phase 1: skeleton embed with the loading footer, edited in place as data arrives
     const embed = baseEmbed(message, lastfmUser, track).setFooter({
-      text: 'loading your data...',
+      text: withNote('loading your data...'),
       iconURL: LOADING_GIF,
     });
     const sent = await sendable(message).send({ embeds: [embed] });
@@ -210,17 +214,16 @@ export const fm: Command = {
         }
       }
 
-      let foot = scrobblesFooter(allPlays, artistPlays, albumPlays);
-      if (!nowPlaying) foot = `${NOT_PLAYING_FOOTER}\n${foot}`;
+      const foot = scrobblesFooter(allPlays, artistPlays, albumPlays);
       const render = (text: string) =>
         baseEmbed(message, lastfmUser, track).setFooter({ text, iconURL: crownGif });
-      await sent.edit({ embeds: [render(foot)] });
+      await sent.edit({ embeds: [render(withNote(foot))] });
 
       // phase 2: ranks, revealed one period at a time as each scan finishes
       const artistRanks: Ranks = { week: null, month: null, year: null, overall: null };
       const albumRanks: Ranks = { week: null, month: null, year: null, overall: null };
       const footerWithRanks = () =>
-        foot + rankLine(artistRanks, 'artist') + rankLine(albumRanks, 'album');
+        withNote(foot + rankLine(artistRanks, 'artist') + rankLine(albumRanks, 'album'));
       // a dropped rank edit must not discard the footer we already painted
       const repaint = () =>
         sent.edit({ embeds: [render(footerWithRanks())] }).catch(() => undefined);
@@ -257,7 +260,7 @@ export const fm: Command = {
         .edit({
           embeds: [
             baseEmbed(message, lastfmUser, track).setFooter({
-              text: nowPlaying ? 'could not load your data.' : NOT_PLAYING_FOOTER,
+              text: withNote('could not load your data.'),
               iconURL: CROWN_GIF_DEFAULT,
             }),
           ],
