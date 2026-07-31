@@ -45,6 +45,25 @@ Push to `main`. The `deploy` workflow tests, builds, stops the service, backs up
 SQLite DB, syncs the new build, installs production deps, and restarts. Migrations run
 automatically at app startup.
 
+## Versioning & releases
+
+Every push to `main` mints a version and cuts a GitHub Release. The bump comes from the
+squash-merge commit subject: `feat(...)` → minor, `<type>!:` or `BREAKING CHANGE` in the body
+→ major, anything else (including non-conventional subjects) → patch. The logic lives in
+`scripts/nextVersion.ts` and is unit-tested; it sits outside `src/` so it never ships to the VM.
+
+**Git tags are the source of truth**, not `package.json` — the next version is computed from the
+highest `v*` tag, so a stale checkout or a skipped write-back can't duplicate or skip a version.
+The workflow stamps the version into `package.json`, commits it to `main`, *then* deploys, so
+the release tag always points at the tree that actually shipped (which is what makes rolling
+back to a tag viable). The Release itself is created only after `systemctl is-active` passes.
+
+- Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
+- A manual `workflow_dispatch` run deploys the checked-out tree as-is — no version, no release.
+- `::warning::main moved during this deploy` means another PR merged mid-deploy, so the version
+  write-back was skipped rather than rebased onto newer code. The tag and Release are still
+  correct; `main`'s `package.json` is just one version behind and the next deploy reconciles it.
+
 ## Discord portal checklist (once per bot application)
 
 - Bot → Privileged Gateway Intents: enable **Server Members Intent** and
