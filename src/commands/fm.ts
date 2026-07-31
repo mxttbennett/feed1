@@ -19,18 +19,70 @@ import {
   fmDescription,
   rankLine,
   scrobblesFooter,
-  type AlbumRanks,
+  type Ranks,
 } from './fmFormat.js';
 
+const PAGE_SIZE = 1000;
+
+interface RankBudget {
+  key: keyof Ranks;
+  period: Period;
+  pages: number;
+}
+
 /** pages of 1000 searched per period before giving up on a rank */
-const RANK_PAGES: { key: keyof AlbumRanks; period: Period; pages: number }[] = [
+const ARTIST_RANK_PAGES: RankBudget[] = [
+  { key: 'week', period: '7day', pages: 1 },
+  { key: 'month', period: '1month', pages: 1 },
+  { key: 'year', period: '12month', pages: 2 },
+  { key: 'overall', period: 'overall', pages: 3 },
+];
+
+const ALBUM_RANK_PAGES: RankBudget[] = [
   { key: 'week', period: '7day', pages: 1 },
   { key: 'month', period: '1month', pages: 1 },
   { key: 'year', period: '12month', pages: 3 },
   { key: 'overall', period: 'overall', pages: 5 },
 ];
 
-async function findAlbumRank(
+/**
+ * Albums need two fields to identify them; collapse both sides to one comparable key.
+ * The NUL joiner can't occur in a name, so "A B" + "C" can't collide with "A" + "B C".
+ */
+function albumKey(artist: string, album: string): string {
+  return `${artist}\u0000${album}`;
+}
+
+async function findRank(
+  maxPages: number,
+  target: string,
+  fetchKeys: (page: number) => Promise<string[]>,
+): Promise<number | null> {
+  const wanted = target.toUpperCase();
+  for (let page = 1; page <= maxPages; page++) {
+    const keys = await fetchKeys(page);
+    if (keys.length === 0) return null;
+    const index = keys.findIndex((key) => key.toUpperCase() === wanted);
+    if (index !== -1) return (page - 1) * PAGE_SIZE + index + 1;
+    if (keys.length < PAGE_SIZE) return null;
+  }
+  return null;
+}
+
+function findArtistRank(
+  app: AppContext,
+  lastfmUser: string,
+  period: Period,
+  maxPages: number,
+  artist: string,
+): Promise<number | null> {
+  return findRank(maxPages, artist, async (page) => {
+    const data = await app.lastfm.getTopArtists(lastfmUser, period, PAGE_SIZE, page);
+    return data.topartists.artist.map((a) => a.name);
+  });
+}
+
+function findAlbumRank(
   app: AppContext,
   lastfmUser: string,
   period: Period,
@@ -38,19 +90,10 @@ async function findAlbumRank(
   artist: string,
   album: string,
 ): Promise<number | null> {
-  for (let page = 1; page <= maxPages; page++) {
-    const data = await app.lastfm.getTopAlbums(lastfmUser, period, 1000, page);
-    const albums = data.topalbums.album;
-    if (albums.length === 0) return null;
-    const index = albums.findIndex(
-      (a) =>
-        a.artist.name.toUpperCase() === artist.toUpperCase() &&
-        a.name.toUpperCase() === album.toUpperCase(),
-    );
-    if (index !== -1) return (page - 1) * 1000 + index + 1;
-    if (albums.length < 1000) return null;
-  }
-  return null;
+  return findRank(maxPages, albumKey(artist, album), async (page) => {
+    const data = await app.lastfm.getTopAlbums(lastfmUser, period, PAGE_SIZE, page);
+    return data.topalbums.album.map((a) => albumKey(a.artist.name, a.name));
+  });
 }
 
 function baseEmbed(message: Message, lastfmUser: string, track: RecentTrack): EmbedBuilder {
@@ -146,43 +189,9 @@ export const fm: Command = {
         }
       }
 
-      let foot = scrobblesFooter(allPlays, artistPlays, albumPlays);
-      if (!nowPlaying) foot = `${NOT_PLAYING_FOOTER}\n${foot}`;
-      await sent.edit({
-        embeds: [baseEmbed(message, lastfmUser, track).setFooter({ text: foot, iconURL: crownGif })],
-      });
-
-      // phase 2: album ranks, appended once found
-      if (albumPlays !== null && albumPlays > 0 && album) {
-        const ranks: AlbumRanks = { week: null, month: null, year: null, overall: null };
-        for (const { key, period, pages } of RANK_PAGES) {
-          try {
-            ranks[key] = await findAlbumRank(
-              app,
-              lastfmUser,
-              period,
-              pages,
-              canonicalArtist,
-              canonicalAlbum,
-            );
-          } catch {
-            ranks[key] = null;
-          }
-        }
-        const line = rankLine(ranks);
-        if (line) {
-          await sent.edit({
-            embeds: [
-              baseEmbed(message, lastfmUser, track).setFooter({
-                text: foot + line,
-                iconURL: crownGif,
-              }),
-            ],
-          });
-        }
-      }
-
-      // legacy &fm recomputed crowns inline; feed1 queues the same work for the background worker
+      // legacy &fm recomputed crowns inline; feed1 queues the same work for the background worker.
+      // Enqueued before any rendering so a failed edit or rank scan can't cost the guild its
+      // crown update.
       if (message.guild) {
         enqueueCrownJob(app.db, {
           kind: 'artist',
@@ -199,6 +208,48 @@ export const fm: Command = {
             requestedBy: message.author.id,
           });
         }
+      }
+
+      let foot = scrobblesFooter(allPlays, artistPlays, albumPlays);
+      if (!nowPlaying) foot = `${NOT_PLAYING_FOOTER}\n${foot}`;
+      const render = (text: string) =>
+        baseEmbed(message, lastfmUser, track).setFooter({ text, iconURL: crownGif });
+      await sent.edit({ embeds: [render(foot)] });
+
+      // phase 2: ranks, revealed one period at a time as each scan finishes
+      const artistRanks: Ranks = { week: null, month: null, year: null, overall: null };
+      const albumRanks: Ranks = { week: null, month: null, year: null, overall: null };
+      const footerWithRanks = () =>
+        foot + rankLine(artistRanks, 'artist') + rankLine(albumRanks, 'album');
+      // a dropped rank edit must not discard the footer we already painted
+      const repaint = () =>
+        sent.edit({ embeds: [render(footerWithRanks())] }).catch(() => undefined);
+
+      const collect = async (
+        ranks: Ranks,
+        budget: RankBudget[],
+        find: (period: Period, pages: number) => Promise<number | null>,
+      ) => {
+        for (const { key, period, pages } of budget) {
+          try {
+            ranks[key] = await find(period, pages);
+          } catch {
+            ranks[key] = null;
+          }
+          if (ranks[key] !== null) await repaint();
+        }
+      };
+
+      if (artistPlays !== null && artistPlays > 0) {
+        await collect(artistRanks, ARTIST_RANK_PAGES, (period, pages) =>
+          findArtistRank(app, lastfmUser, period, pages, canonicalArtist),
+        );
+      }
+
+      if (albumPlays !== null && albumPlays > 0 && album) {
+        await collect(albumRanks, ALBUM_RANK_PAGES, (period, pages) =>
+          findAlbumRank(app, lastfmUser, period, pages, canonicalArtist, canonicalAlbum),
+        );
       }
     } catch (error) {
       await app.errors.report(error, 'fm enrichment');

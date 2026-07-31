@@ -67,24 +67,34 @@ describe('scrobblesFooter', () => {
 
 describe('rankLine', () => {
   it('joins found ranks with pipes in w/m/y/o order', () => {
-    expect(rankLine({ week: 1, month: 2, year: 3, overall: 4 })).toBe(
+    expect(rankLine({ week: 1, month: 2, year: 3, overall: 4 }, 'album')).toBe(
       '\nalbum ranks → w: #1 | m: #2 | y: #3 | o: #4',
     );
   });
 
+  it('labels artist ranks with the artist kind', () => {
+    expect(rankLine({ week: 1, month: 2, year: 3, overall: 4 }, 'artist')).toBe(
+      '\nartist ranks → w: #1 | m: #2 | y: #3 | o: #4',
+    );
+  });
+
   it('omits missing ranks', () => {
-    expect(rankLine({ week: null, month: 5, year: null, overall: 9 })).toBe(
+    expect(rankLine({ week: null, month: 5, year: null, overall: 9 }, 'album')).toBe(
       '\nalbum ranks → m: #5 | o: #9',
     );
   });
 
   it('uses the legacy singular label when only the overall rank exists', () => {
-    expect(rankLine({ week: null, month: null, year: null, overall: 7 })).toBe(
+    expect(rankLine({ week: null, month: null, year: null, overall: 7 }, 'album')).toBe(
       '\nalbum rank → o: #7',
+    );
+    expect(rankLine({ week: null, month: null, year: null, overall: 7 }, 'artist')).toBe(
+      '\nartist rank → o: #7',
     );
   });
 
   it('returns empty when nothing was found', () => {
-    expect(rankLine({ week: null, month: null, year: null, overall: null })).toBe('');
+    expect(rankLine({ week: null, month: null, year: null, overall: null }, 'album')).toBe('');
+    expect(rankLine({ week: null, month: null, year: null, overall: null }, 'artist')).toBe('');
   });
 });
