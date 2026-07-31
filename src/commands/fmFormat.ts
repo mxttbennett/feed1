@@ -58,7 +58,7 @@ export function scrobblesFooter(
   return foot;
 }
 
-export interface AlbumRanks {
+export interface Ranks {
   week: number | null;
   month: number | null;
   year: number | null;
@@ -66,10 +66,10 @@ export interface AlbumRanks {
 }
 
 /**
- * `\nalbum ranks → w: #N | m: #N | y: #N | o: #N` for the ranks that were found.
+ * `\n<kind> ranks → w: #N | m: #N | y: #N | o: #N` for the ranks that were found.
  * Legacy quirk kept: when only the overall rank exists the label is singular (`album rank`).
  */
-export function rankLine(ranks: AlbumRanks): string {
+export function rankLine(ranks: Ranks, kind: 'artist' | 'album'): string {
   const segments: string[] = [];
   if (ranks.week !== null) segments.push(`w: #${ranks.week}`);
   if (ranks.month !== null) segments.push(`m: #${ranks.month}`);
@@ -77,5 +77,5 @@ export function rankLine(ranks: AlbumRanks): string {
   if (ranks.overall !== null) segments.push(`o: #${ranks.overall}`);
   if (segments.length === 0) return '';
   const onlyOverall = segments.length === 1 && ranks.overall !== null;
-  return `\nalbum rank${onlyOverall ? '' : 's'} → ${segments.join(' | ')}`;
+  return `\n${kind} rank${onlyOverall ? '' : 's'} → ${segments.join(' | ')}`;
 }
