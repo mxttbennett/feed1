@@ -134,6 +134,9 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
       isSendable: () => true,
     },
     channelId: opts.channelId ?? 'channel-1',
+    client: {
+      guilds: { cache: { size: 1 } },
+    },
     mentions: {
       users: {
         first: () => mentionedUsers[0],

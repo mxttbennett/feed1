@@ -25,8 +25,9 @@ npm run dev
 
 ## Deployment
 
-GitHub Actions deploys `main` to an Oracle Cloud free-tier VM over SSH.
-See [deploy/README.md](deploy/README.md) for the one-time setup.
+GitHub Actions deploys `main` to an Oracle Cloud free-tier VM over SSH. Each merge is
+versioned from its commit subject and published as a [GitHub Release](../../releases).
+See [deploy/README.md](deploy/README.md) for the one-time setup and the versioning rules.
 
 ## Commands
 

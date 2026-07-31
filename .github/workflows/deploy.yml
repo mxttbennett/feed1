@@ -12,8 +12,12 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -21,6 +25,62 @@ jobs:
       - run: npm ci
       - run: npx vitest run
       - run: npm run build
+
+      # Versioning is push-only: a manual workflow_dispatch redeploys the
+      # checked-out tree as-is, without minting a version or a release.
+      - name: Compute release version
+        id: release
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+          version=$(
+            LATEST_TAG="$latest" \
+            SUBJECT="$(git log -1 --format=%s "$GITHUB_SHA")" \
+            BODY="$(git log -1 --format=%b "$GITHUB_SHA")" \
+            FALLBACK="$(node -p "require('./package.json').version")" \
+            npx tsx scripts/nextVersion.ts
+          )
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "::error::tag v$version already exists — refusing to reuse a released version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "${latest:-<no tags>} -> v$version"
+
+      - name: Stamp the version into the artifact
+        if: steps.release.outputs.version != ''
+        run: npm version "${{ steps.release.outputs.version }}" --no-git-tag-version --allow-same-version
+
+      # Pushed before the deploy so the release tag points at a commit whose
+      # package.json is the one that actually shipped.
+      - name: Commit and push the version bump
+        id: writeback
+        if: steps.release.outputs.version != ''
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "version already ${{ steps.release.outputs.version }} — nothing to write back"
+            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git commit -m "chore(release): ${{ steps.release.outputs.tag }} [skip ci]"
+          git fetch origin main
+          # Never rebase onto a newer main — that would publish this version's
+          # package.json on top of the next release's code. Skip instead; tags
+          # stay authoritative and the next deploy reconciles.
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "::warning::main moved during this deploy — skipping the version write-back"
+            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Set up SSH
         run: |
@@ -55,3 +115,15 @@ jobs:
           sleep 5
           systemctl is-active feed1
           EOF
+
+      # Only after the service is confirmed up, so a release always means a
+      # deploy that came back healthy.
+      - name: Create the GitHub Release
+        if: steps.release.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.release.outputs.tag }}" \
+            --title "${{ steps.release.outputs.tag }}" \
+            --generate-notes \
+            --target "${{ steps.writeback.outputs.sha }}"

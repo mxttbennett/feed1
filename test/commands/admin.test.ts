@@ -3,6 +3,7 @@ import type { EmbedBuilder } from 'discord.js';
 import { adminCommands } from '../../src/commands/admin.js';
 import { fm } from '../../src/commands/fm.js';
 import { Router } from '../../src/core/router.js';
+import { readPackageVersion } from '../../src/core/version.js';
 import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
 
 const byName = (name: string) => adminCommands.find((c) => c.name === name)!;
@@ -66,5 +67,18 @@ describe('&help', () => {
     const embed = fake.embeds[0] as EmbedBuilder;
     expect(embed.data.title).toBe('&fm');
     expect(JSON.stringify(embed.data.fields)).toContain('`f`');
+  });
+});
+
+describe('&botinfo', () => {
+  it('reports the running release version', async () => {
+    const app = appWithAll();
+    const fake = makeFakeMessage({ content: '&botinfo' });
+    await byName('botinfo').run({ app, message: fake.message, args: [] });
+
+    const embed = fake.embeds[0] as EmbedBuilder;
+    const version = embed.data.fields?.find((f) => f.name === 'version');
+    expect(version?.value).toBe(readPackageVersion());
+    expect(version?.value).not.toBe('unknown');
   });
 });

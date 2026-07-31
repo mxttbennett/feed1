@@ -6,7 +6,8 @@
 2. Pick a **home region** close to you (e.g. `us-ashburn-1`). It can't be changed later.
 3. Create instance: **Compute → Instances → Create**.
    - Image: **Ubuntu 24.04**.
-   - Shape: **Ampere A1.Flex** (Always Free eligible), e.g. 2 OCPU / 12 GB — anything within the free 4 OCPU / 24 GB.
+   - Shape: **Ampere A1.Flex** (Always Free eligible) — anything within the free 4 OCPU / 24 GB.
+     The current host runs 1 OCPU / 6 GB, which is plenty; scale up for free if a build ever needs it.
    - If "Out of capacity": retry later, try another availability domain, or upgrade the account to Pay-As-You-Go (still $0 within free limits) which unlocks capacity.
    - Add your SSH public key.
 4. Networking: the default VCN is fine. The bot makes only outbound connections — no ingress rules needed beyond SSH (22).
@@ -44,6 +45,25 @@ Push to `main`. The `deploy` workflow tests, builds, stops the service, backs up
 SQLite DB, syncs the new build, installs production deps, and restarts. Migrations run
 automatically at app startup.
 
+## Versioning & releases
+
+Every push to `main` mints a version and cuts a GitHub Release. The bump comes from the
+squash-merge commit subject: `feat(...)` → minor, `<type>!:` or `BREAKING CHANGE` in the body
+→ major, anything else (including non-conventional subjects) → patch. The logic lives in
+`scripts/nextVersion.ts` and is unit-tested; it sits outside `src/` so it never ships to the VM.
+
+**Git tags are the source of truth**, not `package.json` — the next version is computed from the
+highest `v*` tag, so a stale checkout or a skipped write-back can't duplicate or skip a version.
+The workflow stamps the version into `package.json`, commits it to `main`, *then* deploys, so
+the release tag always points at the tree that actually shipped (which is what makes rolling
+back to a tag viable). The Release itself is created only after `systemctl is-active` passes.
+
+- Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
+- A manual `workflow_dispatch` run deploys the checked-out tree as-is — no version, no release.
+- `::warning::main moved during this deploy` means another PR merged mid-deploy, so the version
+  write-back was skipped rather than rebased onto newer code. The tag and Release are still
+  correct; `main`'s `package.json` is just one version behind and the next deploy reconciles it.
+
 ## Discord portal checklist (once per bot application)
 
 - Bot → Privileged Gateway Intents: enable **Server Members Intent** and
@@ -51,6 +71,8 @@ automatically at app startup.
 
 ## Ops notes
 
+- Current host: Ampere A1.Flex, 1 OCPU (ARM Neoverse-N1) / 6 GB RAM / 45 GB disk,
+  Ubuntu 24.04, no swap. Public IP is in the `DEPLOY_HOST` repo secret.
 - Logs: `journalctl -u feed1 -f`
 - DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20).
 - The whole VM is disposable: a fresh one needs only provision.sh + .env + repo secrets update.
