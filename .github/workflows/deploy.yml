@@ -4,6 +4,16 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to roll back to (e.g. v2.0.1). Blank deploys the selected branch.'
+        required: false
+        type: string
+      force_across_migrations:
+        description: 'DANGEROUS: deploy even if the DB schema is ahead of the target tag'
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy
@@ -15,9 +25,35 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Format-checked before checkout so a typo can't resolve to a branch.
+      - name: Validate the rollback tag
+        if: inputs.tag != ''
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${{ inputs.tag }}" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'${{ inputs.tag }}' is not a release tag (expected vMAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      # Proves we're on the annotated release tag itself, not a branch or SHA
+      # that happens to answer to the same name.
+      - name: Confirm the checkout is that tag
+        if: inputs.tag != ''
+        run: |
+          set -euo pipefail
+          tagged=$(git rev-parse --verify "refs/tags/${{ inputs.tag }}^{commit}")
+          head=$(git rev-parse --verify HEAD)
+          if [ "$tagged" != "$head" ]; then
+            echo "::error::HEAD ($head) is not ${{ inputs.tag }} ($tagged)"
+            exit 1
+          fi
+          echo "rolling back to ${{ inputs.tag }} at $head"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -89,6 +125,56 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
 
+      # Runs before anything mutates the box, so a refused rollback leaves the
+      # bot running untouched. Drizzle only ever compares against the highest
+      # applied created_at, so a target tag behind that value would boot old
+      # code against a newer schema and apply nothing — silently.
+      - name: Check migration state against the target tag
+        if: inputs.tag != ''
+        run: |
+          set -euo pipefail
+
+          if [ -f drizzle/meta/_journal.json ]; then
+            target=$(node -e 'const j=require("./drizzle/meta/_journal.json");const w=(j.entries||[]).map(e=>e.when).filter(n=>Number.isSafeInteger(n));process.stdout.write(w.length?String(Math.max(...w)):"")')
+          else
+            target=""
+          fi
+
+          applied=$(ssh -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" bash -s <<'REMOTE'
+          set -euo pipefail
+          APP="${{ secrets.DEPLOY_PATH }}"
+          cd "$APP"
+          rel=$(grep -E '^DB_PATH=' .env 2>/dev/null | tail -1 | cut -d= -f2- || true)
+          rel=${rel:-.data/feed1.sqlite}
+          case "$rel" in /*) db="$rel" ;; *) db="$APP/$rel" ;; esac
+          [ -f "$db" ] || exit 0
+          node -e 'const D=require("better-sqlite3");const s=new D(process.argv[1],{readonly:true});const t=s.prepare("select name from sqlite_master where type=? and name=?").get("table","__drizzle_migrations");if(!t)process.exit(0);const r=s.prepare("select max(created_at) as m from __drizzle_migrations").get();if(r&&r.m!=null)process.stdout.write(String(r.m))' "$db"
+          REMOTE
+          )
+
+          echo "target tag journal max: ${target:-<none>}"
+          echo "database applied max:   ${applied:-<none>}"
+
+          set +e
+          reason=$(APPLIED_MAX="$applied" TARGET_MAX="$target" npx tsx scripts/migrationGuard.ts)
+          code=$?
+          set -e
+          echo "$reason"
+
+          # Exit 2 is a determinate mismatch; anything else non-zero means the
+          # state couldn't be read, which force must never override.
+          if [ "$code" -eq 2 ]; then
+            if [ "${{ inputs.force_across_migrations }}" = "true" ]; then
+              echo "::warning::Forcing across a schema mismatch. A pre-deploy snapshot is written to .data/backups/predeploy_<timestamp>.sqlite — restore the newest one from this run if the bot misbehaves."
+            else
+              echo "::error::Refusing to deploy ${{ inputs.tag }}. Re-run with force_across_migrations=true to override — see deploy/README.md first."
+              exit 1
+            fi
+          elif [ "$code" -ne 0 ]; then
+            echo "::error::Could not determine migration state; refusing to deploy."
+            exit 1
+          fi
+
       - name: Stage and rsync build to server
         run: |
           mkdir -p stage
@@ -104,9 +190,17 @@ jobs:
           set -euo pipefail
           APP="${{ secrets.DEPLOY_PATH }}"
           sudo systemctl stop feed1 || true
-          if [ -f "$APP/.data/feed1.sqlite" ]; then
+          cd "$APP"
+          rel=$(grep -E '^DB_PATH=' .env 2>/dev/null | tail -1 | cut -d= -f2- || true)
+          rel=${rel:-.data/feed1.sqlite}
+          case "$rel" in /*) DB="$rel" ;; *) DB="$APP/$rel" ;; esac
+          if [ -f "$DB" ]; then
             mkdir -p "$APP/.data/backups"
-            cp "$APP/.data/feed1.sqlite" "$APP/.data/backups/predeploy_$(date +%Y%m%dT%H%M%S).sqlite"
+            SNAP="$APP/.data/backups/predeploy_$(date +%Y%m%dT%H%M%S).sqlite"
+            # VACUUM INTO, not cp: the service exits without closing the handle,
+            # so committed frames can still be sitting in the -wal file.
+            node -e 'const D=require("better-sqlite3");const db=new D(process.argv[1]);db.prepare("VACUUM INTO ?").run(process.argv[2]);db.close()' "$DB" "$SNAP"
+            echo "pre-deploy snapshot: $SNAP"
           fi
           rsync -a --delete --exclude '.data' --exclude '.env' --exclude 'node_modules' --exclude 'incoming' "$APP/incoming/" "$APP/"
           cd "$APP"
