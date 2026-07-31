@@ -6,7 +6,8 @@
 2. Pick a **home region** close to you (e.g. `us-ashburn-1`). It can't be changed later.
 3. Create instance: **Compute → Instances → Create**.
    - Image: **Ubuntu 24.04**.
-   - Shape: **Ampere A1.Flex** (Always Free eligible), e.g. 2 OCPU / 12 GB — anything within the free 4 OCPU / 24 GB.
+   - Shape: **Ampere A1.Flex** (Always Free eligible) — anything within the free 4 OCPU / 24 GB.
+     The current host runs 1 OCPU / 6 GB, which is plenty; scale up for free if a build ever needs it.
    - If "Out of capacity": retry later, try another availability domain, or upgrade the account to Pay-As-You-Go (still $0 within free limits) which unlocks capacity.
    - Add your SSH public key.
 4. Networking: the default VCN is fine. The bot makes only outbound connections — no ingress rules needed beyond SSH (22).
@@ -51,6 +52,8 @@ automatically at app startup.
 
 ## Ops notes
 
+- Current host: Ampere A1.Flex, 1 OCPU (ARM Neoverse-N1) / 6 GB RAM / 45 GB disk,
+  Ubuntu 24.04, no swap. Public IP is in the `DEPLOY_HOST` repo secret.
 - Logs: `journalctl -u feed1 -f`
 - DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20).
 - The whole VM is disposable: a fresh one needs only provision.sh + .env + repo secrets update.
