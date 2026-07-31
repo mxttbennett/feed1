@@ -53,6 +53,8 @@ export interface FakeMessageOptions {
   channelId?: string;
   mentionUserIds?: string[];
   memberDisplayColor?: number;
+  /** 0-indexed edit calls that should reject, to exercise non-fatal edit paths */
+  failEditsAt?: number[];
 }
 
 export interface FakeMessage {
@@ -88,10 +90,14 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     return Promise.resolve(makeSentMessage());
   };
 
+  const failEditsAt = new Set(opts.failEditsAt ?? []);
+
   function makeSentMessage() {
     return {
       edit: (payload: unknown) => {
+        const attempt = edits.length;
         edits.push(payload);
+        if (failEditsAt.has(attempt)) return Promise.reject(new Error(`edit ${attempt} failed`));
         return Promise.resolve(makeSentMessage());
       },
       react: () => Promise.resolve(),
