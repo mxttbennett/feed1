@@ -52,18 +52,18 @@ squash-merge commit subject: `feat(...)` → minor, `<type>!:` or `BREAKING CHAN
 → major, anything else (including non-conventional subjects) → patch. The logic lives in
 `scripts/nextVersion.ts` and is unit-tested; it sits outside `src/` so it never ships to the VM.
 
-**Git tags are the source of truth**, not `package.json` — the next version is computed from the
-highest `v*` tag, so a stale checkout or a skipped write-back can't duplicate or skip a version.
-The workflow stamps the version into `package.json`, commits it to `main`, *then* deploys, so
-the release tag always points at the tree that actually shipped (which is what makes rolling
-back to a tag viable). The Release itself is created only after `systemctl is-active` passes.
+**Git tags are the sole source of truth.** The next version is computed from the highest `v*`
+tag, so a stale checkout can't duplicate or skip one. `package.json`'s committed version is
+deliberately *not* maintained — CI stamps the computed version into the build on its way out,
+so the deployed box reports the right number, but nothing is ever written back to `main`.
+Don't trust the version in a checkout; trust the tag. The Release is created only after
+`systemctl is-active` passes.
 
 - Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
 - A manual `workflow_dispatch` run deploys the checked-out tree as-is — no version, no release.
   Pass a `tag` input to roll back to a release; see [Rolling back](#rolling-back).
-- `::warning::main moved during this deploy` means another PR merged mid-deploy, so the version
-  write-back was skipped rather than rebased onto newer code. The tag and Release are still
-  correct; `main`'s `package.json` is just one version behind and the next deploy reconciles it.
+- Rolling back re-stamps from the tag name for the same reason, so a rolled-back box reports the
+  version you asked for even though the tag's committed `package.json` says otherwise.
 
 ## Rolling back
 
@@ -71,10 +71,10 @@ back to a tag viable). The Release itself is created only after `systemctl is-ac
 gh workflow run deploy.yml -f tag=v2.0.1
 ```
 
-Deploys that release tag instead of `main`. Because the tag's tree carries its own
-`package.json`, the box reports the version you rolled back to. No new version is minted and no
-release is created, and version sequencing is unaffected — the next merge still bumps from the
-highest `v*` tag, so rolling back to `v2.0.1` while tags run to `v2.0.5` still yields `v2.0.6`.
+Deploys that release tag instead of `main`. The version is re-stamped from the tag name, so the
+box reports the version you rolled back to. No new version is minted and no release is created,
+and version sequencing is unaffected — the next merge still bumps from the highest `v*` tag, so
+rolling back to `v2.0.1` while tags run to `v2.0.5` still yields `v2.0.6`.
 
 The tag must look like `vMAJOR.MINOR.PATCH` and resolve to that exact tag; branch names and raw
 SHAs are rejected before anything touches the VM.

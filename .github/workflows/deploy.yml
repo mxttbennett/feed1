@@ -86,37 +86,18 @@ jobs:
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
           echo "${latest:-<no tags>} -> v$version"
 
+      # Workspace-only: package.json in the repo is never updated. Tags are the
+      # sole source of truth, so the version is derived on the way out rather
+      # than mirrored back into main.
       - name: Stamp the version into the artifact
         if: steps.release.outputs.version != ''
         run: npm version "${{ steps.release.outputs.version }}" --no-git-tag-version --allow-same-version
 
-      # Pushed before the deploy so the release tag points at a commit whose
-      # package.json is the one that actually shipped.
-      - name: Commit and push the version bump
-        id: writeback
-        if: steps.release.outputs.version != ''
-        run: |
-          set -euo pipefail
-          if git diff --quiet -- package.json package-lock.json; then
-            echo "version already ${{ steps.release.outputs.version }} — nothing to write back"
-            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json package-lock.json
-          git commit -m "chore(release): ${{ steps.release.outputs.tag }} [skip ci]"
-          git fetch origin main
-          # Never rebase onto a newer main — that would publish this version's
-          # package.json on top of the next release's code. Skip instead; tags
-          # stay authoritative and the next deploy reconciles.
-          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
-            echo "::warning::main moved during this deploy — skipping the version write-back"
-            echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git push origin HEAD:main
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # Rolling back re-derives the version from the tag for the same reason:
+      # the tag name is authoritative, the committed package.json is not.
+      - name: Stamp the rollback version into the artifact
+        if: inputs.tag != ''
+        run: npm version "${{ inputs.tag }}" --no-git-tag-version --allow-same-version
 
       - name: Set up SSH
         run: |
@@ -220,4 +201,4 @@ jobs:
           gh release create "${{ steps.release.outputs.tag }}" \
             --title "${{ steps.release.outputs.tag }}" \
             --generate-notes \
-            --target "${{ steps.writeback.outputs.sha }}"
+            --target "${{ github.sha }}"
