@@ -4,7 +4,7 @@ import type { EmbedBuilder } from 'discord.js';
 import { fm } from '../../src/commands/fm.js';
 import { schema } from '../../src/db/index.js';
 import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
-import { LOADING_GIF, CROWN_GIF_OWN, NOT_PLAYING_FOOTER } from '../../src/commands/fmFormat.js';
+import { LOADING_GIF, CROWN_GIF_OWN, NOT_PLAYING_NOTE } from '../../src/commands/fmFormat.js';
 
 const BASE = 'https://ws.audioscrobbler.com';
 
@@ -253,12 +253,38 @@ describe('&fm', () => {
     expect(footerIconOf(fake.edits[0])).toBe(CROWN_GIF_OWN);
   });
 
-  it('falls back to last scrobbled with the legacy footer text', async () => {
+  it('flags a last-scrobbled track from the first render, with the note last', async () => {
     mockLastfm({ nowPlaying: false });
     const app = setup();
     const fake = makeFakeMessage({ content: '&fm' });
     await fm.run({ app, message: fake.message, args: [] });
-    expect(footerOf(fake.edits[0])).toContain(NOT_PLAYING_FOOTER);
-    expect(footerOf(fake.edits[0])).toContain('scrobbles → all: 5000');
+
+    // the note is known before any Last.fm enrichment, so it ships with the loading embed
+    const first = fake.embeds[0] as EmbedBuilder;
+    expect(first.data.footer?.text).toBe(`loading your data...\n${NOT_PLAYING_NOTE}`);
+
+    expect(footerOf(fake.edits[0])).toBe(`${SCROBBLES}\n${NOT_PLAYING_NOTE}`);
+    expect(lastFooter(fake.edits)).toBe(
+      `${SCROBBLES + ARTIST_RANKS + ALBUM_RANKS}\n${NOT_PLAYING_NOTE}`,
+    );
+  });
+
+  it('keeps the note below the failure message when enrichment fails', async () => {
+    mockLastfm({ nowPlaying: false });
+    const app = setup();
+    const fake = makeFakeMessage({ content: '&fm', failEditsAt: [0] });
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(lastFooter(fake.edits)).toBe(`could not load your data.\n${NOT_PLAYING_NOTE}`);
+  });
+
+  it('shows no note at all while a track is playing', async () => {
+    mockLastfm();
+    const app = setup();
+    const fake = makeFakeMessage({ content: '&fm' });
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect((fake.embeds[0] as EmbedBuilder).data.footer?.text).toBe('loading your data...');
+    expect(lastFooter(fake.edits)).not.toContain(NOT_PLAYING_NOTE);
   });
 });
