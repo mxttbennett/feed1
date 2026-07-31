@@ -60,9 +60,59 @@ back to a tag viable). The Release itself is created only after `systemctl is-ac
 
 - Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
 - A manual `workflow_dispatch` run deploys the checked-out tree as-is — no version, no release.
+  Pass a `tag` input to roll back to a release; see [Rolling back](#rolling-back).
 - `::warning::main moved during this deploy` means another PR merged mid-deploy, so the version
   write-back was skipped rather than rebased onto newer code. The tag and Release are still
   correct; `main`'s `package.json` is just one version behind and the next deploy reconciles it.
+
+## Rolling back
+
+```sh
+gh workflow run deploy.yml -f tag=v2.0.1
+```
+
+Deploys that release tag instead of `main`. Because the tag's tree carries its own
+`package.json`, the box reports the version you rolled back to. No new version is minted and no
+release is created, and version sequencing is unaffected — the next merge still bumps from the
+highest `v*` tag, so rolling back to `v2.0.1` while tags run to `v2.0.5` still yields `v2.0.6`.
+
+The tag must look like `vMAJOR.MINOR.PATCH` and resolve to that exact tag; branch names and raw
+SHAs are rejected before anything touches the VM.
+
+### The migration guard
+
+Drizzle is forward-only, and it decides what to apply by comparing against the *highest*
+`created_at` in `__drizzle_migrations`. So rolling back past a migration would boot old code
+against a newer schema and apply nothing — no error, just code running against a shape it was
+never written for. Before deploying, the workflow compares the DB's highest applied migration
+against the highest `when` in the target tag's `drizzle/meta/_journal.json` and **refuses** if the
+DB is ahead. It runs before the service is stopped, so a refusal leaves the bot running.
+
+To override, re-run with `force_across_migrations=true`:
+
+```sh
+gh workflow run deploy.yml -f tag=v2.0.1 -f force_across_migrations=true
+```
+
+That is a real risk, not a formality — only the schema-mismatch case can be forced. If the
+migration state can't be read at all, the deploy refuses regardless.
+
+### Restoring the database
+
+Every deploy writes a pre-deploy snapshot to `/opt/feed1/.data/backups/predeploy_<timestamp>.sqlite`
+(via `VACUUM INTO`, so it includes committed WAL frames) and logs the path it wrote. To restore
+the newest one:
+
+```sh
+sudo systemctl stop feed1
+cd /opt/feed1
+cp .data/backups/predeploy_<timestamp>.sqlite .data/feed1.sqlite
+rm -f .data/feed1.sqlite-wal .data/feed1.sqlite-shm
+sudo systemctl start feed1
+```
+
+Restoring discards everything scrobbled since that snapshot, which is why rollback never does it
+automatically.
 
 ## Discord portal checklist (once per bot application)
 
@@ -74,5 +124,6 @@ back to a tag viable). The Release itself is created only after `systemctl is-ac
 - Current host: Ampere A1.Flex, 1 OCPU (ARM Neoverse-N1) / 6 GB RAM / 45 GB disk,
   Ubuntu 24.04, no swap. Public IP is in the `DEPLOY_HOST` repo secret.
 - Logs: `journalctl -u feed1 -f`
-- DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20).
+- DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20), plus a
+  `predeploy_*.sqlite` snapshot per deploy. All snapshots use `VACUUM INTO`.
 - The whole VM is disposable: a fresh one needs only provision.sh + .env + repo secrets update.
