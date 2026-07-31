@@ -2,6 +2,7 @@ import { AttachmentBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js
 import type { Command } from '../core/command.js';
 import { disableCommand, enableCommand } from '../core/disables.js';
 import { sendable } from '../core/channel.js';
+import { readPackageVersion } from '../core/version.js';
 import { parseLogsArgs, readLogs } from '../ops/logs.js';
 
 const PROTECTED = new Set(['enable', 'disable', 'help']);
@@ -111,6 +112,7 @@ const botinfo: Command = {
       .setTitle('feed1')
       .setDescription('a Last.fm Discord bot')
       .addFields(
+        { name: 'version', value: readPackageVersion(), inline: true },
         { name: 'servers', value: String(client.guilds.cache.size), inline: true },
         { name: 'uptime', value: `${Math.floor(process.uptime() / 60)} min`, inline: true },
         { name: 'commands', value: String(app.registry.all().length), inline: true },
