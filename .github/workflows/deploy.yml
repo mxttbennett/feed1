@@ -62,43 +62,6 @@ jobs:
       - run: npx vitest run
       - run: npm run build
 
-      # Versioning is push-only: a manual workflow_dispatch redeploys the
-      # checked-out tree as-is, without minting a version or a release.
-      - name: Compute release version
-        id: release
-        if: github.event_name == 'push'
-        run: |
-          set -euo pipefail
-          git fetch --tags --force
-          latest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
-          version=$(
-            LATEST_TAG="$latest" \
-            SUBJECT="$(git log -1 --format=%s "$GITHUB_SHA")" \
-            BODY="$(git log -1 --format=%b "$GITHUB_SHA")" \
-            FALLBACK="$(node -p "require('./package.json').version")" \
-            npx tsx scripts/nextVersion.ts
-          )
-          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "::error::tag v$version already exists — refusing to reuse a released version"
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version" >> "$GITHUB_OUTPUT"
-          echo "${latest:-<no tags>} -> v$version"
-
-      # Workspace-only: package.json in the repo is never updated. Tags are the
-      # sole source of truth, so the version is derived on the way out rather
-      # than mirrored back into main.
-      - name: Stamp the version into the artifact
-        if: steps.release.outputs.version != ''
-        run: npm version "${{ steps.release.outputs.version }}" --no-git-tag-version --allow-same-version
-
-      # Rolling back re-derives the version from the tag for the same reason:
-      # the tag name is authoritative, the committed package.json is not.
-      - name: Stamp the rollback version into the artifact
-        if: inputs.tag != ''
-        run: npm version "${{ inputs.tag }}" --no-git-tag-version --allow-same-version
-
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -191,14 +154,36 @@ jobs:
           systemctl is-active feed1
           EOF
 
-      # Only after the service is confirmed up, so a release always means a
-      # deploy that came back healthy.
-      - name: Create the GitHub Release
-        if: steps.release.outputs.version != ''
+      # Last on purpose. The version is whatever package.json says, so a version
+      # mistake must not block shipping — the deploy above has already
+      # succeeded by this point, and a bad version only fails the release.
+      - name: Tag and release
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.release.outputs.tag }}" \
-            --title "${{ steps.release.outputs.tag }}" \
-            --generate-notes \
-            --target "${{ github.sha }}"
+          set -euo pipefail
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+
+          if ! printf '%s' "$version" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::package.json version '$version' is not MAJOR.MINOR.PATCH. The deploy succeeded; no release was cut."
+            exit 1
+          fi
+
+          git fetch --tags --force
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::error::$tag already exists — bump the version in package.json. The deploy succeeded; no release was cut."
+            exit 1
+          fi
+
+          # Catches a backwards typo (2.1.0 -> 2.0.9), which collides with no
+          # existing tag but would leave the release list out of order.
+          highest=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+          if [ -n "$highest" ] && [ "$(printf '%s\n%s\n' "${highest#v}" "$version" | sort -V | tail -1)" != "$version" ]; then
+            echo "::error::$tag is not newer than the latest release $highest. The deploy succeeded; no release was cut."
+            exit 1
+          fi
+
+          gh release create "$tag" --title "$tag" --generate-notes --target "${{ github.sha }}"
+          echo "released $tag"
