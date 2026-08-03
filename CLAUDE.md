@@ -29,7 +29,10 @@ tested without Discord or HTTP.
   Edits that only *add* optional detail should swallow their failures so a hiccup can't discard an
   already-good message.
 - Numbers arrive from Last.fm as strings — parse with `toInt()` from `src/lastfm/types.ts`.
-- Background work (crown recalculation) is queued to the DB and drained by a worker, not done inline.
+- Artist crown recalculation is queued to the DB and drained by a worker, not done inline. The
+  **album** crown is the exception: `-fm` settles it inline after its rank scans, because the footer
+  gif has to say whether the caller holds the crown. The queued album job is enqueued first as the
+  failure path and deleted once the inline scan succeeds.
 
 ## Loop
 
