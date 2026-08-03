@@ -27,8 +27,8 @@ npm run dev
 
 GitHub Actions deploys `main` to an Oracle Cloud free-tier VM over SSH. Bump `version` in
 `package.json` as part of your PR; each merge tags that version and publishes a
-[GitHub Release](../../releases).
-See [deploy/README.md](deploy/README.md) for the one-time setup and the versioning rules.
+[GitHub Release](../../releases). Every merge bumps — see [VERSIONING.md](VERSIONING.md) for which
+number and why, and [deploy/README.md](deploy/README.md) for the one-time setup and rollbacks.
 
 ## Commands
 
