@@ -3,8 +3,14 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { EmbedBuilder } from 'discord.js';
 import { fm } from '../../src/commands/fm.js';
 import { schema } from '../../src/db/index.js';
-import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
-import { LOADING_GIF, CROWN_GIF_OWN, NOT_PLAYING_NOTE } from '../../src/commands/fmFormat.js';
+import { makeFakeApp, makeFakeMessage, withGuildMembers } from '../helpers/fake.js';
+import {
+  LOADING_GIF,
+  CROWN_GIF_DEFAULT,
+  CROWN_GIF_OTHER,
+  CROWN_GIF_OWN,
+  NOT_PLAYING_NOTE,
+} from '../../src/commands/fmFormat.js';
 
 const BASE = 'https://ws.audioscrobbler.com';
 
@@ -44,8 +50,12 @@ interface MockOptions {
   album?: string;
   artistPlays?: string;
   albumPlays?: number;
+  /** per-last.fm-username album plays for the crown fan-out; others get `albumPlays` */
+  albumPlaysByUser?: Record<string, number>;
   /** make user.gettopartists fail so only album ranks can resolve */
   topArtistsDown?: boolean;
+  /** make album.getinfo fail for everyone but the caller, sinking the crown scan */
+  albumScanDown?: boolean;
 }
 
 function mockLastfm(opts: MockOptions = {}) {
@@ -54,7 +64,9 @@ function mockLastfm(opts: MockOptions = {}) {
     album = 'Gantz Graf',
     artistPlays = '250',
     albumPlays = 42,
+    albumPlaysByUser = {},
     topArtistsDown = false,
+    albumScanDown = false,
   } = opts;
 
   nock(BASE)
@@ -79,12 +91,27 @@ function mockLastfm(opts: MockOptions = {}) {
         image: [],
       },
     });
+  // one username-aware interceptor: nock matches in registration order, so a second
+  // album.getinfo mock added by a test would never be reached
   nock(BASE)
     .persist()
     .get('/2.0/')
     .query((q) => q.method === 'album.getinfo')
-    .reply(200, {
-      album: { name: 'Gantz Graf', artist: 'Autechre', url: '', userplaycount: albumPlays, image: [] },
+    .reply((uri) => {
+      const username = new URL(`https://x${uri}`).searchParams.get('username') ?? '';
+      if (albumScanDown && username !== 'lfm1') return [500, {}];
+      return [
+        200,
+        {
+          album: {
+            name: 'Gantz Graf',
+            artist: 'Autechre',
+            url: '',
+            userplaycount: albumPlaysByUser[username] ?? albumPlays,
+            image: [],
+          },
+        },
+      ];
     });
   nock(BASE)
     .persist()
@@ -213,7 +240,7 @@ describe('&fm', () => {
     expect(app.reportedErrors).toHaveLength(0);
   });
 
-  it('enqueues artist and album crown jobs instead of scanning inline', async () => {
+  it('enqueues artist and album crown jobs before rendering', async () => {
     mockLastfm();
     const app = setup();
     const fake = makeFakeMessage({ content: '&fm' });
@@ -286,5 +313,165 @@ describe('&fm', () => {
 
     expect((fake.embeds[0] as EmbedBuilder).data.footer?.text).toBe('loading your data...');
     expect(lastFooter(fake.edits)).not.toContain(NOT_PLAYING_NOTE);
+  });
+});
+
+describe('&fm inline album crown', () => {
+  /** the caller plus one rival, both registered so the member join keeps them */
+  function setupWithMembers(opts: { fetchUser?: (id: string) => Promise<unknown> } = {}) {
+    const app = makeFakeApp([fm]);
+    app.db
+      .insert(schema.users)
+      .values([
+        { discordUserId: 'user-1', lastfmUsername: 'lfm1' },
+        { discordUserId: 'user-2', lastfmUsername: 'lfm2' },
+      ])
+      .run();
+    const fake = makeFakeMessage({ content: '&fm', ...opts });
+    withGuildMembers(fake, ['user-1', 'user-2']);
+    return { app, fake };
+  }
+
+  function lastIcon(edits: unknown[]): string {
+    return footerIconOf(edits[edits.length - 1]);
+  }
+
+  function insertCrown(app: ReturnType<typeof makeFakeApp>, userId: string, albumPlays: number) {
+    app.db
+      .insert(schema.albumCrowns)
+      .values({
+        guildId: 'guild-1',
+        userId,
+        artistName: 'Autechre',
+        albumName: 'Gantz Graf',
+        albumPlays,
+      })
+      .run();
+  }
+
+  it('replaces the placeholder gif with the own-crown gif once the scan settles', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 5 } });
+    const { app, fake } = setupWithMembers();
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(footerIconOf(fake.edits[0])).toBe(CROWN_GIF_DEFAULT);
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_OWN);
+    // the footer text survives the repaint untouched
+    expect(lastFooter(fake.edits)).toBe(SCROBBLES + ARTIST_RANKS + ALBUM_RANKS);
+
+    const crown = app.db.select().from(schema.albumCrowns).all()[0]!;
+    expect(crown.userId).toBe('user-1');
+    expect(crown.albumPlays).toBe(42);
+  });
+
+  it('shows the other-crown gif when another member holds the album', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 500 } });
+    const { app, fake } = setupWithMembers();
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(footerIconOf(fake.edits[0])).toBe(CROWN_GIF_DEFAULT);
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_OTHER);
+    expect(app.db.select().from(schema.albumCrowns).all()[0]!.userId).toBe('user-2');
+  });
+
+  it('spends no extra edit when the scan confirms the gif already shown', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 5 } });
+    const { app, fake } = setupWithMembers();
+    insertCrown(app, 'user-1', 42);
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(footerIconOf(fake.edits[0])).toBe(CROWN_GIF_OWN);
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_OWN);
+    // same count as a run with no crown scan at all — the change guard held
+    expect(fake.edits).toHaveLength(9);
+  });
+
+  it('drops the redundant album job but leaves the artist job queued', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 5 } });
+    const { app, fake } = setupWithMembers();
+    await fm.run({ app, message: fake.message, args: [] });
+
+    const jobs = app.db.select().from(schema.crownJobs).all();
+    expect(jobs.map((j) => j.kind)).toEqual(['artist']);
+  });
+
+  it('keeps the finished footer when the crown fan-out fails', async () => {
+    mockLastfm({ albumScanDown: true });
+    const { app, fake } = setupWithMembers();
+    await fm.run({ app, message: fake.message, args: [] });
+
+    const footer = lastFooter(fake.edits);
+    expect(footer).toBe(SCROBBLES + ARTIST_RANKS + ALBUM_RANKS);
+    expect(footer).not.toContain('could not load your data.');
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_DEFAULT);
+    // both jobs survive, so the worker still gets to settle the crown
+    expect(app.db.select().from(schema.crownJobs).all()).toHaveLength(2);
+    expect(app.reportedErrors).toHaveLength(0);
+  });
+
+  it('notifies both sides when the caller takes the crown, and still repaints', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 5 } });
+    const dms: string[] = [];
+    const { app, fake } = setupWithMembers({
+      fetchUser: (id) =>
+        Promise.resolve({
+          tag: `${id}#0`,
+          send: (text: string) => {
+            dms.push(`${id}: ${text}`);
+            return Promise.resolve();
+          },
+        }),
+    });
+    insertCrown(app, 'user-2', 5);
+    app.db
+      .insert(schema.notifPrefs)
+      .values([
+        { userId: 'user-1', onWin: true },
+        { userId: 'user-2', onLoss: true },
+      ])
+      .run();
+
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(dms.some((d) => d.startsWith('user-1:') && d.includes('have won'))).toBe(true);
+    expect(dms.some((d) => d.startsWith('user-2:') && d.includes('have lost'))).toBe(true);
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_OWN);
+  });
+
+  it('still repaints when the notification path throws', async () => {
+    mockLastfm({ albumPlaysByUser: { lfm2: 5 } });
+    const { app, fake } = setupWithMembers({
+      fetchUser: () => {
+        throw new Error('users unavailable');
+      },
+    });
+    insertCrown(app, 'user-2', 5);
+
+    await fm.run({ app, message: fake.message, args: [] });
+
+    // the DM throw is swallowed, so the caller's takeover still reaches the footer
+    expect(footerIconOf(fake.edits[0])).toBe(CROWN_GIF_OTHER);
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_OWN);
+    expect(app.db.select().from(schema.albumCrowns).all()[0]!.userId).toBe('user-1');
+  });
+
+  it('skips the scan for a scrobble with no album', async () => {
+    mockLastfm({ album: '' });
+    const { app, fake } = setupWithMembers();
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_DEFAULT);
+    expect(app.db.select().from(schema.albumCrowns).all()).toHaveLength(0);
+  });
+
+  it('skips the scan when nobody in the guild is registered', async () => {
+    mockLastfm();
+    const app = setup();
+    const fake = makeFakeMessage({ content: '&fm' });
+    await fm.run({ app, message: fake.message, args: [] });
+
+    expect(lastIcon(fake.edits)).toBe(CROWN_GIF_DEFAULT);
+    expect(app.db.select().from(schema.albumCrowns).all()).toHaveLength(0);
+    expect(app.db.select().from(schema.crownJobs).all()).toHaveLength(2);
   });
 });
