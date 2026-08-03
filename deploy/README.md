@@ -47,21 +47,12 @@ automatically at app startup.
 
 ## Versioning & releases
 
-**`package.json`'s `version` is the source of truth — bump it yourself in the PR.** On merge to
-`main`, CI tags whatever it finds there and cuts a matching GitHub Release. Nothing is inferred
-from commit messages and CI never writes to the repo, so the version that ships is exactly the
-one you reviewed.
+Which number to bump, when to bump it, and what CI does with it: **[VERSIONING.md](../VERSIONING.md)**.
 
-Pick the bump the usual way: breaking → major, new behaviour → minor, otherwise patch.
-
-The release is created only after `systemctl is-active` passes, and it's the **last** step — so
-a version mistake never blocks shipping. If the version is malformed, already tagged (you forgot
-to bump), or lower than the latest release, **the deploy still succeeds and the run goes red**
-with the reason. Fix it by bumping in your next PR, or tag that commit by hand.
-
-- Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
-- A manual `workflow_dispatch` run deploys the checked-out tree as-is — no tag, no release.
-  Pass a `tag` input to roll back to a release; see [Rolling back](#rolling-back).
+The short version: `package.json`'s `version` is the source of truth, you bump it in the PR, and
+each merge to `main` tags it and cuts a GitHub Release as the last step of this workflow — so a
+version mistake never blocks shipping. A manual `workflow_dispatch` run deploys the checked-out
+tree as-is with no tag and no release; pass a `tag` input to roll back to a release, below.
 
 ## Rolling back
 

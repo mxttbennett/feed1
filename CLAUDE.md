@@ -48,3 +48,8 @@ a fake `Message` recording replies/embeds/edits). No network in tests.
 
 Merging to `main` triggers `.github/workflows/deploy.yml`: tests + build, rsync to an Oracle Cloud
 VM, DB backup, `systemctl restart feed1`. CI (typecheck, lint, test, build) runs on every PR.
+
+**Every PR merged to `main` must bump `version` in `package.json`** — docs and CI-only changes
+included, as a patch. The merge tags that version and cuts a release; an unchanged version leaves
+the deploy fine but turns the run red. Read [VERSIONING.md](VERSIONING.md) before choosing the
+number; it owns the rules, and `deploy/README.md` covers rollback mechanics.
