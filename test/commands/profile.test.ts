@@ -121,6 +121,42 @@ describe('&plays', () => {
     await byName('plays').run({ app, message: fake.message, args: ['nobody'] });
     expect(fake.replies[0]).toBe("you haven't scrobbled `Nobody`.");
   });
+
+  it('resolves the artist from the last scrobble when nothing is playing', async () => {
+    nock(BASE)
+      .get('/2.0/')
+      .query((q) => q.method === 'user.getrecenttracks')
+      .reply(200, {
+        recenttracks: {
+          // no nowplaying attr — this is a finished scrobble
+          track: [{ name: 'Gantz Graf', artist: { '#text': 'Autechre', mbid: '' }, album: { '#text': '', mbid: '' }, image: [], url: '' }],
+          '@attr': { total: '1', user: 'x' },
+        },
+      });
+    nock(BASE)
+      .get('/2.0/')
+      .query((q) => q.method === 'artist.getinfo')
+      .reply(200, {
+        artist: { name: 'Autechre', url: '', stats: { listeners: '1', playcount: '1', userplaycount: '99' }, image: [] },
+      });
+    const app = makeFakeApp(profileCommands);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'x' }).run();
+    const fake = makeFakeMessage({ content: '&plays' });
+    await byName('plays').run({ app, message: fake.message, args: [] });
+    expect(fake.replies[0]).toBe('you have scrobbled  `Autechre`  **99** times.');
+  });
+
+  it('still reports nothing-playing when the user has never scrobbled', async () => {
+    nock(BASE)
+      .get('/2.0/')
+      .query((q) => q.method === 'user.getrecenttracks')
+      .reply(200, { recenttracks: { track: [], '@attr': { total: '0', user: 'x' } } });
+    const app = makeFakeApp(profileCommands);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'x' }).run();
+    const fake = makeFakeMessage({ content: '&plays' });
+    await byName('plays').run({ app, message: fake.message, args: [] });
+    expect(fake.replies[0]).toBe('currently, you are not listening to anything.');
+  });
 });
 
 describe('&list', () => {

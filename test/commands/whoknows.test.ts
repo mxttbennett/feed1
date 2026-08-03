@@ -32,6 +32,27 @@ function mockArtistScan(plays: Record<string, string>) {
     });
 }
 
+function mockRecentTracks(opts: { nowPlaying?: boolean; empty?: boolean } = {}) {
+  const track = {
+    name: 'Gantz Graf',
+    artist: { '#text': 'Autechre', mbid: '' },
+    album: { '#text': 'Gantz Graf', mbid: '' },
+    image: [],
+    url: '',
+    ...(opts.nowPlaying ? { '@attr': { nowplaying: 'true' } } : {}),
+  };
+  nock(BASE)
+    .persist()
+    .get('/2.0/')
+    .query((q) => q.method === 'user.getrecenttracks')
+    .reply(200, {
+      recenttracks: {
+        track: opts.empty ? [] : [track],
+        '@attr': { total: opts.empty ? '0' : '1', user: 'lfm1' },
+      },
+    });
+}
+
 function guildWithMembers(fake: FakeMessage, ids: string[]) {
   const collection = new Collection(
     ids.map((id) => [id, { user: { id, bot: false, tag: `${id}#0`, username: id } }]),
@@ -102,6 +123,25 @@ describe('&wk', () => {
     const fake = makeFakeMessage({ content: '&wk x' });
     await byName('wk').run({ app, message: fake.message, args: ['x'] });
     expect(fake.replies[0]).toBe(app.snippets.noLogin);
+  });
+
+  it('falls back to the last scrobbled track when nothing is playing', async () => {
+    const { app, fake } = setup({ lfm1: '10', lfm2: '40' });
+    mockRecentTracks({ nowPlaying: false });
+    await byName('wk').run({ app, message: fake.message, args: [] });
+
+    // resolved the artist from the last scrobble instead of bailing out
+    expect(fake.replies).not.toContain(app.snippets.notPlaying);
+    expect((fake.embeds[0] as EmbedBuilder).data.title).toBe('Autechre');
+  });
+
+  it('bails only when the user has never scrobbled anything', async () => {
+    const { app, fake } = setup({ lfm1: '10' });
+    mockRecentTracks({ empty: true });
+    await byName('wk').run({ app, message: fake.message, args: [] });
+
+    expect(fake.replies[0]).toBe(app.snippets.notPlaying);
+    expect(fake.embeds).toHaveLength(0);
   });
 });
 
