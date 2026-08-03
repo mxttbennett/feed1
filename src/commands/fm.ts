@@ -2,9 +2,13 @@ import { EmbedBuilder } from 'discord.js';
 import type { Message } from 'discord.js';
 import { and, eq } from 'drizzle-orm';
 import type { Command, AppContext } from '../core/command.js';
+import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import { getRegisteredUser } from '../core/users.js';
 import { sendable } from '../core/channel.js';
+import { gatherRegisteredMembers } from '../crowns/members.js';
+import { notifyCrownChange } from '../crowns/notify.js';
+import { CrownService } from '../crowns/service.js';
 import { enqueueCrownJob } from '../crowns/worker.js';
 import { imageUrl, toInt } from '../lastfm/types.js';
 import type { Period, RecentTrack } from '../lastfm/types.js';
@@ -96,6 +100,29 @@ function findAlbumRank(
   });
 }
 
+/** The footer gif for a settled album crown, or null when the guild has no crown for it yet. */
+function albumCrownGif(
+  db: Db,
+  guildId: string,
+  artistName: string,
+  albumName: string,
+  authorId: string,
+): string | null {
+  const crown = db
+    .select()
+    .from(schema.albumCrowns)
+    .where(
+      and(
+        eq(schema.albumCrowns.guildId, guildId),
+        eq(schema.albumCrowns.artistName, artistName),
+        eq(schema.albumCrowns.albumName, albumName),
+      ),
+    )
+    .get();
+  if (!crown) return null;
+  return crown.userId === authorId ? CROWN_GIF_OWN : CROWN_GIF_OTHER;
+}
+
 function baseEmbed(message: Message, lastfmUser: string, track: RecentTrack): EmbedBuilder {
   const artist = track.artist['#text'];
   const album = track.album['#text'];
@@ -159,6 +186,9 @@ export const fm: Command = {
       let canonicalArtist = artist;
       let canonicalAlbum = album;
       let crownGif = CROWN_GIF_DEFAULT;
+      // non-null only once Last.fm has told us the album exists, which gates the inline crown scan
+      let crownArtist: string | null = null;
+      let crownAlbum: string | null = null;
 
       try {
         const artistData = await app.lastfm.getArtistInfo(artist, lastfmUser);
@@ -174,20 +204,16 @@ export const fm: Command = {
           albumPlays = toInt(albumData.album.userplaycount);
           canonicalAlbum = albumData.album.name;
 
-          const crown = app.db
-            .select()
-            .from(schema.albumCrowns)
-            .where(
-              and(
-                eq(schema.albumCrowns.guildId, message.guild!.id),
-                eq(schema.albumCrowns.artistName, albumData.album.artist),
-                eq(schema.albumCrowns.albumName, albumData.album.name),
-              ),
-            )
-            .get();
-          if (crown) {
-            crownGif = crown.userId === message.author.id ? CROWN_GIF_OWN : CROWN_GIF_OTHER;
-          }
+          crownArtist = albumData.album.artist;
+          crownAlbum = albumData.album.name;
+          crownGif =
+            albumCrownGif(
+              app.db,
+              message.guild!.id,
+              crownArtist,
+              crownAlbum,
+              message.author.id,
+            ) ?? CROWN_GIF_DEFAULT;
         } catch {
           // no album info → no album segment, default gif
         }
@@ -253,6 +279,63 @@ export const fm: Command = {
         await collect(albumRanks, ALBUM_RANK_PAGES, (period, pages) =>
           findAlbumRank(app, lastfmUser, period, pages, canonicalArtist, canonicalAlbum),
         );
+      }
+
+      // phase 3: legacy's inline album crown check, so CROWN_GIF_DEFAULT is a placeholder rather
+      // than a permanent answer. Its own try/catch — a failed scan must not discard the footer we
+      // already painted, and the queued album job is the retry path.
+      if (crownArtist && crownAlbum) {
+        try {
+          const guild = message.guild!;
+          const members = await gatherRegisteredMembers(app.db, guild);
+          if (members.length > 0) {
+            const service = new CrownService(app.db, app.lastfm, app.guildScanLock, (change) =>
+              // the DM is incidental here; losing it must not cost us the icon repaint
+              notifyCrownChange(message.client, app.db, change).catch(() => undefined),
+            );
+            const result = await app.guildScanLock.run(`scan:${guild.id}`, () =>
+              service.scan(
+                {
+                  guildId: guild.id,
+                  guildName: guild.name,
+                  artistName: crownArtist,
+                  albumName: crownAlbum,
+                },
+                members,
+              ),
+            );
+
+            // settled inline, so the queued duplicate is waste. Claimed jobs are left for the
+            // worker, whose requeue-by-id would otherwise become a silent no-op.
+            app.db
+              .delete(schema.crownJobs)
+              .where(
+                and(
+                  eq(schema.crownJobs.kind, 'album'),
+                  eq(schema.crownJobs.status, 'pending'),
+                  eq(schema.crownJobs.guildId, guild.id),
+                  eq(schema.crownJobs.artistName, canonicalArtist),
+                  eq(schema.crownJobs.albumName, canonicalAlbum),
+                ),
+              )
+              .run();
+
+            // the scan's own canonical names, which need not match the ones we read with above
+            const settled = albumCrownGif(
+              app.db,
+              guild.id,
+              result.artistName,
+              result.albumName ?? crownAlbum,
+              message.author.id,
+            );
+            if (settled && settled !== crownGif) {
+              crownGif = settled;
+              await repaint();
+            }
+          }
+        } catch {
+          // the queued album job is the fallback, and reports its own failures after retrying
+        }
       }
     } catch (error) {
       await app.errors.report(error, 'fm enrichment');

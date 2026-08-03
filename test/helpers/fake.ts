@@ -1,3 +1,4 @@
+import { Collection } from 'discord.js';
 import type { Message } from 'discord.js';
 import type { AppContext, Command } from '../../src/core/command.js';
 import { CommandRegistry } from '../../src/core/command.js';
@@ -55,6 +56,8 @@ export interface FakeMessageOptions {
   memberDisplayColor?: number;
   /** 0-indexed edit calls that should reject, to exercise non-fatal edit paths */
   failEditsAt?: number[];
+  /** stands in for `client.users.fetch`, for the crown-notification DM path */
+  fetchUser?: (id: string) => Promise<unknown>;
 }
 
 export interface FakeMessage {
@@ -124,7 +127,11 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
       ? {
           id: guildId,
           name: `guild-${guildId}`,
-          members: { fetch: () => Promise.resolve(new Map()) },
+          memberCount: 0,
+          members: {
+            cache: new Collection<string, unknown>(),
+            fetch: () => Promise.resolve(new Collection<string, unknown>()),
+          },
         }
       : null,
     channel: {
@@ -136,6 +143,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     channelId: opts.channelId ?? 'channel-1',
     client: {
       guilds: { cache: { size: 1 } },
+      users: { fetch: opts.fetchUser ?? (() => Promise.resolve(null)) },
     },
     mentions: {
       users: {
@@ -147,4 +155,32 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
   } as unknown as Message;
 
   return { replies, embeds, edits, message };
+}
+
+/**
+ * Give a fake message a guild populated with the given member ids. `fetch()` fills the cache
+ * lazily, so `gatherRegisteredMembers` exercises its cache-miss branch. Ids still need matching
+ * `users` rows to survive the join in `gatherRegisteredMembers`.
+ */
+export function withGuildMembers(fake: FakeMessage, ids: string[]): void {
+  const all = new Collection<string, unknown>(
+    ids.map((id) => [id, { user: { id, bot: false, tag: `${id}#0`, username: id } }]),
+  );
+  const cache = new Collection<string, unknown>();
+  (
+    fake.message as unknown as {
+      guild: { id: string; name: string; members: unknown; memberCount: number };
+    }
+  ).guild = {
+    id: 'guild-1',
+    name: 'Test Guild',
+    memberCount: ids.length,
+    members: {
+      cache,
+      fetch: () => {
+        for (const [id, m] of all) cache.set(id, m);
+        return Promise.resolve(all);
+      },
+    },
+  };
 }

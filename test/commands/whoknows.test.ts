@@ -3,8 +3,7 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { EmbedBuilder } from 'discord.js';
 import { whoKnowsCommands } from '../../src/commands/whoknows.js';
 import { schema } from '../../src/db/index.js';
-import { makeFakeApp, makeFakeMessage, type FakeMessage } from '../helpers/fake.js';
-import { Collection } from 'discord.js';
+import { makeFakeApp, makeFakeMessage, withGuildMembers } from '../helpers/fake.js';
 import type { Message } from 'discord.js';
 
 const BASE = 'https://ws.audioscrobbler.com';
@@ -53,30 +52,6 @@ function mockRecentTracks(opts: { nowPlaying?: boolean; empty?: boolean } = {}) 
     });
 }
 
-function guildWithMembers(fake: FakeMessage, ids: string[]) {
-  const collection = new Collection(
-    ids.map((id) => [id, { user: { id, bot: false, tag: `${id}#0`, username: id } }]),
-  );
-  const cache = new Collection<string, unknown>();
-  const members = {
-    cache,
-    fetch: () => {
-      for (const [id, m] of collection) cache.set(id, m);
-      return Promise.resolve(collection);
-    },
-  };
-  (
-    fake.message as unknown as {
-      guild: { id: string; name: string; members: unknown; memberCount: number };
-    }
-  ).guild = {
-    id: 'guild-1',
-    name: 'Test Guild',
-    members,
-    memberCount: ids.length,
-  };
-}
-
 function setup(plays: Record<string, string>) {
   const app = makeFakeApp(whoKnowsCommands);
   app.db
@@ -88,7 +63,7 @@ function setup(plays: Record<string, string>) {
     .run();
   mockArtistScan(plays);
   const fake = makeFakeMessage({ content: '&wk autechre' });
-  guildWithMembers(fake, ['user-1', 'user-2']);
+  withGuildMembers(fake, ['user-1', 'user-2']);
   return { app, fake };
 }
 
@@ -171,7 +146,7 @@ describe('&a', () => {
       });
 
     const fake = makeFakeMessage({ content: '&a Autechre | Confield' });
-    guildWithMembers(fake, ['user-1']);
+    withGuildMembers(fake, ['user-1']);
     await byName('a').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
 
     const embed = fake.embeds[0] as EmbedBuilder;
