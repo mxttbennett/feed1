@@ -1,6 +1,6 @@
 {
   "name": "feed1",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "feed1 — a Last.fm Discord bot",
   "type": "module",
   "main": "dist/index.js",

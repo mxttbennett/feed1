@@ -30,21 +30,31 @@ describe('LastfmClient', () => {
     expect(toInt(info.user.playcount)).toBeGreaterThan(100_000);
   });
 
-  it('detects now playing vs last scrobbled', async () => {
+  it('returns the last scrobble when nothing is playing, and the live track when it is', async () => {
     const recent = fixture('user_getrecenttracks');
     nock(BASE).get('/2.0/').query(true).reply(200, recent);
-    const np = await makeClient().getNowPlaying('rj');
-    // recorded fixture has no nowplaying attr — should be null
-    expect(np).toBeNull();
+    // recorded fixture has no nowplaying attr — the last scrobble is still the answer
+    const last = await makeClient().getLatestTrack('rj');
+    expect(last?.name).toBe('Private Idaho');
+    expect(last?.['@attr']?.nowplaying).toBeUndefined();
 
     const withNp = JSON.parse(JSON.stringify(recent)) as {
       recenttracks: { track: Record<string, unknown>[] };
     };
     withNp.recenttracks.track[0]!['@attr'] = { nowplaying: 'true' };
     nock(BASE).get('/2.0/').query(true).reply(200, withNp);
-    const playing = await makeClient().getNowPlaying('rj');
+    const playing = await makeClient().getLatestTrack('rj');
     expect(playing?.name).toBe('Private Idaho');
+    expect(playing?.['@attr']?.nowplaying).toBe('true');
     expect(imageUrl(playing?.image, 2)).toContain('174s');
+  });
+
+  it('returns null only when the user has never scrobbled', async () => {
+    nock(BASE)
+      .get('/2.0/')
+      .query(true)
+      .reply(200, { recenttracks: { track: [], '@attr': { total: '0', user: 'rj' } } });
+    expect(await makeClient().getLatestTrack('rj')).toBeNull();
   });
 
   it('parses top albums/artists/tracks', async () => {

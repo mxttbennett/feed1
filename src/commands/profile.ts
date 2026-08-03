@@ -127,7 +127,7 @@ const plays: Command = {
 
     let artistName = args.join(' ');
     if (!artistName) {
-      const track = await app.lastfm.getNowPlaying(registered.lastfmUsername);
+      const track = await app.lastfm.getLatestTrack(registered.lastfmUsername);
       if (!track) return message.reply(`currently, you are not listening to anything.`);
       artistName = track.artist['#text'];
     }

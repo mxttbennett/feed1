@@ -91,11 +91,13 @@ export class LastfmClient {
     return this.request('user.getrecenttracks', params);
   }
 
-  /** The currently playing track, or null when nothing is scrobbling right now. */
-  async getNowPlaying(user: string): Promise<RecentTrack | null> {
+  /**
+   * What the user is listening to, falling back to their last scrobble.
+   * Null only when they have never scrobbled anything.
+   */
+  async getLatestTrack(user: string): Promise<RecentTrack | null> {
     const data = await this.getRecentTracks(user, { limit: 1 });
-    const track = data.recenttracks.track[0];
-    return track?.['@attr']?.nowplaying ? track : null;
+    return data.recenttracks.track[0] ?? null;
   }
 
   getTopAlbums(user: string, period: Period, limit = 50, page = 1): Promise<TopAlbums> {

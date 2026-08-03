@@ -54,7 +54,7 @@ async function runWhoKnows(ctx: CommandContext, kind: 'artist' | 'album'): Promi
       artistName = joined;
     }
   } else {
-    const track = await app.lastfm.getNowPlaying(registered.lastfmUsername);
+    const track = await app.lastfm.getLatestTrack(registered.lastfmUsername);
     if (!track) return message.reply(app.snippets.notPlaying);
     artistName = track.artist['#text'];
     albumName = kind === 'album' ? track.album['#text'] : undefined;
