@@ -47,23 +47,21 @@ automatically at app startup.
 
 ## Versioning & releases
 
-Every push to `main` mints a version and cuts a GitHub Release. The bump comes from the
-squash-merge commit subject: `feat(...)` → minor, `<type>!:` or `BREAKING CHANGE` in the body
-→ major, anything else (including non-conventional subjects) → patch. The logic lives in
-`scripts/nextVersion.ts` and is unit-tested; it sits outside `src/` so it never ships to the VM.
+**`package.json`'s `version` is the source of truth — bump it yourself in the PR.** On merge to
+`main`, CI tags whatever it finds there and cuts a matching GitHub Release. Nothing is inferred
+from commit messages and CI never writes to the repo, so the version that ships is exactly the
+one you reviewed.
 
-**Git tags are the source of truth**, not `package.json` — the next version is computed from the
-highest `v*` tag, so a stale checkout or a skipped write-back can't duplicate or skip a version.
-The workflow stamps the version into `package.json`, commits it to `main`, *then* deploys, so
-the release tag always points at the tree that actually shipped (which is what makes rolling
-back to a tag viable). The Release itself is created only after `systemctl is-active` passes.
+Pick the bump the usual way: breaking → major, new behaviour → minor, otherwise patch.
+
+The release is created only after `systemctl is-active` passes, and it's the **last** step — so
+a version mistake never blocks shipping. If the version is malformed, already tagged (you forgot
+to bump), or lower than the latest release, **the deploy still succeeds and the run goes red**
+with the reason. Fix it by bumping in your next PR, or tag that commit by hand.
 
 - Which version is live: `node -p "require('/opt/feed1/package.json').version"`, or `-botinfo` in Discord.
-- A manual `workflow_dispatch` run deploys the checked-out tree as-is — no version, no release.
+- A manual `workflow_dispatch` run deploys the checked-out tree as-is — no tag, no release.
   Pass a `tag` input to roll back to a release; see [Rolling back](#rolling-back).
-- `::warning::main moved during this deploy` means another PR merged mid-deploy, so the version
-  write-back was skipped rather than rebased onto newer code. The tag and Release are still
-  correct; `main`'s `package.json` is just one version behind and the next deploy reconciles it.
 
 ## Rolling back
 
@@ -71,10 +69,10 @@ back to a tag viable). The Release itself is created only after `systemctl is-ac
 gh workflow run deploy.yml -f tag=v2.0.1
 ```
 
-Deploys that release tag instead of `main`. Because the tag's tree carries its own
-`package.json`, the box reports the version you rolled back to. No new version is minted and no
-release is created, and version sequencing is unaffected — the next merge still bumps from the
-highest `v*` tag, so rolling back to `v2.0.1` while tags run to `v2.0.5` still yields `v2.0.6`.
+Deploys that release tag instead of `main`. The tag's tree carries the `package.json` you
+committed for that release, so the box reports the version you rolled back to. No tag and no
+release are created, and nothing about sequencing changes — the next merge still releases
+whatever `main`'s `package.json` says.
 
 The tag must look like `vMAJOR.MINOR.PATCH` and resolve to that exact tag; branch names and raw
 SHAs are rejected before anything touches the VM.
