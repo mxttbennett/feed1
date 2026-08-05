@@ -11,7 +11,7 @@ function appWithCrowns() {
   const app = makeFakeApp(crownCommands);
   app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
   app.db
-    .insert(schema.crowns)
+    .insert(schema.artistCrowns)
     .values([
       { guildId: 'guild-1', userId: 'user-1', artistName: 'Autechre', artistPlays: 100 },
       { guildId: 'guild-1', userId: 'user-1', artistName: 'Aphex Twin', artistPlays: 1 },

@@ -55,7 +55,7 @@ describe('CrownService artist crowns', () => {
       member('b'),
     ]);
 
-    const crown = db.select().from(schema.crowns).all()[0]!;
+    const crown = db.select().from(schema.artistCrowns).all()[0]!;
     expect(crown.userId).toBe('a');
     expect(crown.artistPlays).toBe(10);
     expect(crown.serverPlays).toBe(15);
@@ -68,7 +68,7 @@ describe('CrownService artist crowns', () => {
   it('does not create a crown when nobody has plays', async () => {
     const { db, service, changes } = makeService({ 'lfm-a': 0, 'lfm-b': 0 });
     await service.scan({ ...GUILD, artistName: 'Autechre' }, [member('a'), member('b')]);
-    expect(db.select().from(schema.crowns).all()).toHaveLength(0);
+    expect(db.select().from(schema.artistCrowns).all()).toHaveLength(0);
     expect(changes).toHaveLength(0);
   });
 
@@ -89,7 +89,7 @@ describe('CrownService artist crowns', () => {
     })();
     await s2.scan({ ...GUILD, artistName: 'Autechre' }, [member('a'), member('b')]);
 
-    const crown = db.select().from(schema.crowns).all()[0]!;
+    const crown = db.select().from(schema.artistCrowns).all()[0]!;
     expect(crown.userId).toBe('b');
     expect(crown.artistPlays).toBe(20);
     expect(c2).toHaveLength(2);
@@ -108,7 +108,7 @@ describe('CrownService artist crowns', () => {
     );
     await s2.scan({ ...GUILD, artistName: 'Autechre' }, [member('a'), member('b')]);
 
-    expect(db.select().from(schema.crowns).all()[0]!.userId).toBe('a');
+    expect(db.select().from(schema.artistCrowns).all()[0]!.userId).toBe('a');
   });
 
   it('reassigns when the incumbent left the guild', async () => {
@@ -124,7 +124,7 @@ describe('CrownService artist crowns', () => {
     // member a no longer in the member list
     await s2.scan({ ...GUILD, artistName: 'Autechre' }, [member('b')]);
 
-    const crown = db.select().from(schema.crowns).all()[0]!;
+    const crown = db.select().from(schema.artistCrowns).all()[0]!;
     expect(crown.userId).toBe('b');
     expect(crown.artistPlays).toBe(5);
   });
@@ -187,7 +187,7 @@ describe('CrownService album crowns', () => {
     const { db, service } = makeService({ 'lfm-a': 4 });
     await service.scan({ ...GUILD, artistName: 'Autechre' }, [member('a')]);
     await service.scan({ ...GUILD, artistName: 'Autechre', albumName: 'Confield' }, [member('a')]);
-    expect(db.select().from(schema.crowns).all()).toHaveLength(1);
+    expect(db.select().from(schema.artistCrowns).all()).toHaveLength(1);
     expect(db.select().from(schema.albumCrowns).all()).toHaveLength(1);
   });
 });
@@ -225,7 +225,7 @@ describe('CrownService concurrency', () => {
     await slowRun;
 
     // the same owner both times; the crown row exists exactly once
-    const rows = db.select().from(schema.crowns).all();
+    const rows = db.select().from(schema.artistCrowns).all();
     expect(rows).toHaveLength(1);
     expect(rows[0]!.userId).toBe('a');
   });

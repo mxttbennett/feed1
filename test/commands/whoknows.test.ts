@@ -80,7 +80,7 @@ describe('&wk', () => {
     expect(embed.data.footer?.text).toContain('50 scrobbles | 2 listeners | 25 avg');
     expect(embed.data.footer?.text).toContain('this crown check took');
 
-    const crown = app.db.select().from(schema.crowns).all()[0]!;
+    const crown = app.db.select().from(schema.artistCrowns).all()[0]!;
     expect(crown.userId).toBe('user-2');
     expect(crown.artistPlays).toBe(40);
   });

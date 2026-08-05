@@ -8,6 +8,13 @@
       "when": 1784230224030,
       "tag": "0000_loose_ultimatum",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785954122407,
+      "tag": "0001_rename_crowns_to_artist_crowns",
+      "breakpoints": true
     }
   ]
 }

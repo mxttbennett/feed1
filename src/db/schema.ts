@@ -20,8 +20,8 @@ export const users = sqliteTable('users', {
   createdAt: createdAt(),
 });
 
-export const crowns = sqliteTable(
-  'crowns',
+export const artistCrowns = sqliteTable(
+  'artist_crowns',
   {
     id: integer('id').primaryKey({ autoIncrement: true }),
     guildId: text('guild_id').notNull(),
@@ -36,7 +36,7 @@ export const crowns = sqliteTable(
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
   },
-  (t) => [uniqueIndex('crowns_guild_artist').on(t.guildId, t.artistName)],
+  (t) => [uniqueIndex('artist_crowns_guild_artist').on(t.guildId, t.artistName)],
 );
 
 export const albumCrowns = sqliteTable(
