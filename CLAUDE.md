@@ -40,8 +40,9 @@ tested without Discord or HTTP.
 npm run dev        # tsx watch against the dev bot
 npm test           # vitest
 npm run typecheck  # tsc --noEmit
-npm run lint       # eslint src test
+npm run lint       # eslint src test scripts
 npm run smoke      # drives a running dev bot over real Discord
+npm run db:pull    # read-only prod snapshot -> .data/prod/ (see deploy/README.md)
 ```
 
 Tests use `nock` with net access disabled and the fakes in `test/helpers/fake.ts` (in-memory SQLite,

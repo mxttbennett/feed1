@@ -103,6 +103,22 @@ sudo systemctl start feed1
 Restoring discards everything scrobbled since that snapshot, which is why rollback never does it
 automatically.
 
+### Querying prod data locally
+
+```sh
+npm run db:pull                        # host from PROD_SSH_HOST in .env
+npm run db:pull -- ubuntu@<vm-ip>      # or pass it
+```
+
+Lands a snapshot at `.data/prod/feed1-prod.sqlite` (gitignored) for TablePlus, `sqlite3`, or
+anything else. It's a point-in-time copy — re-run it for fresh data.
+
+Never point a client at the live `.data/feed1.sqlite`, over sshfs or otherwise: GUI clients open
+SQLite read-write, and WAL locking across a network filesystem is the documented way to corrupt a
+database. The pull instead opens prod **read-only** on the box and uses `VACUUM INTO`, which is
+safe against the running bot and physically cannot write to it; what comes down is a standalone
+file with no WAL.
+
 ## Discord portal checklist (once per bot application)
 
 - Bot → Privileged Gateway Intents: enable **Server Members Intent** and
