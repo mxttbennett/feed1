@@ -62,9 +62,12 @@ async function listCrowns(ctx: CommandContext, kind: 'artist' | 'album'): Promis
     kind === 'artist'
       ? app.db
           .select()
-          .from(schema.crowns)
+          .from(schema.artistCrowns)
           .where(
-            and(eq(schema.crowns.guildId, message.guild!.id), eq(schema.crowns.userId, target.id)),
+            and(
+              eq(schema.artistCrowns.guildId, message.guild!.id),
+              eq(schema.artistCrowns.userId, target.id),
+            ),
           )
           .all()
           .map((r) => ({ label: r.artistName, url: r.artistUrl, plays: r.artistPlays }))
@@ -105,8 +108,8 @@ async function crownLeaderboard(ctx: CommandContext, kind: 'artist' | 'album'): 
     kind === 'artist'
       ? app.db
           .select()
-          .from(schema.crowns)
-          .where(eq(schema.crowns.guildId, message.guild!.id))
+          .from(schema.artistCrowns)
+          .where(eq(schema.artistCrowns.guildId, message.guild!.id))
           .all()
           .map((r) => r.userId)
       : app.db
