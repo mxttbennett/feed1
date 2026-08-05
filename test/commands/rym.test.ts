@@ -25,19 +25,66 @@ function userRow(app: ReturnType<typeof makeFakeApp>) {
   return app.db.select().from(schema.users).all()[0]!;
 }
 
-/** Replaces channel.send with a stub whose sent message survives the multi-page collector path. */
-function patchChannelSend(fake: ReturnType<typeof makeFakeMessage>): EmbedBuilder[] {
-  const captured: EmbedBuilder[] = [];
+type SendPayload = { embeds?: EmbedBuilder[]; components?: { components: unknown[] }[] };
+type CollectHandler = (interaction: unknown) => Promise<void> | void;
+
+/**
+ * Drives the button pager the way a user does. `sendPaginatedEmbed` only ever passes page 1 to
+ * channel.send — pages 2..N exist solely inside the collector's update calls, so a stub that
+ * discards the collect handler can't see them.
+ */
+function patchPager(fake: ReturnType<typeof makeFakeMessage>, invokerId = 'user-1') {
+  let initial: SendPayload | undefined;
+  let onCollect: CollectHandler | undefined;
   const channel = fake.message.channel as unknown as { send: (p: unknown) => Promise<unknown> };
   channel.send = (payload: unknown) => {
-    const p = payload as { embeds?: EmbedBuilder[] };
-    if (p.embeds) captured.push(...p.embeds);
+    initial ??= payload as SendPayload;
     return Promise.resolve({
-      createMessageComponentCollector: () => ({ on: () => undefined }),
+      createMessageComponentCollector: () => ({
+        on: (event: string, handler: CollectHandler) => {
+          if (event === 'collect') onCollect = handler;
+        },
+      }),
       edit: () => Promise.resolve(undefined),
     });
   };
-  return captured;
+
+  const firstPage = () => {
+    if (!initial?.embeds?.[0]) throw new Error('pager never sent an embed');
+    return initial.embeds[0];
+  };
+
+  /** Total page count, parsed from the `page no. N/total` footer — the only place it is exposed. */
+  const totalPages = () => {
+    const footer = firstPage().data.footer?.text ?? '';
+    const m = /^page no\. \d+\/(\d+)/.exec(footer);
+    if (!m) throw new Error(`footer has no page total: ${footer}`);
+    return parseInt(m[1]!, 10);
+  };
+
+  return {
+    get initial() {
+      return initial;
+    },
+    totalPages,
+    /** Every page in order, page 1 first, by clicking ➡ until the last page. */
+    async pages(): Promise<EmbedBuilder[]> {
+      const collected = [firstPage()];
+      const total = totalPages();
+      if (total > 1 && !onCollect) throw new Error('multi-page send registered no collect handler');
+      for (let i = 1; i < total; i++) {
+        await onCollect!({
+          customId: 'next',
+          user: { id: invokerId },
+          update: (p: SendPayload) => {
+            if (p.embeds?.[0]) collected.push(p.embeds[0]);
+            return Promise.resolve(undefined);
+          },
+        });
+      }
+      return collected;
+    },
+  };
 }
 
 describe('not logged into rym', () => {
@@ -286,20 +333,22 @@ describe('&rand', () => {
     );
   });
 
-  it('sends a single page of unique links within [1..max]', async () => {
+  it('sends one rating per page, unique and within [1..max]', async () => {
     const app = appWithUser({ rymMax: 10 });
     const fake = makeFakeMessage({ content: '&rand' });
+    const pager = patchPager(fake);
     await byName('rand').run({ app, message: fake.message, args: [] });
 
-    const embed = fake.embeds[0] as EmbedBuilder;
-    expect(embed.data.title).toBe('🎲  Rating Randomizer (MAX: 10)  🎲');
-    expect(embed.data.footer?.text).toBe('page no. 1/1 | set max with &max #_of_rym_ratings');
+    const pages = await pager.pages();
+    expect(pages).toHaveLength(10);
+    expect(pages[0]!.data.title).toBe('🎲  Rating Randomizer (MAX: 10)  🎲');
+    expect(pages[0]!.data.footer?.text).toBe('page no. 1/10 | set max with &max #_of_rym_ratings');
 
-    const lines = (embed.data.description ?? '').split('\n');
-    expect(lines).toHaveLength(10);
-    const picks = lines.map((line) => {
+    const picks = pages.map((page) => {
+      const lines = (page.data.description ?? '').split('\n');
+      expect(lines).toHaveLength(1);
       const m = /^\[Rating No\. (\d+)\]\(https:\/\/rateyourmusic\.com\/collection\/testrym\/r0\.5-5\.0,ss\.d,n1\/(\d+)\)$/.exec(
-        line,
+        lines[0]!,
       );
       expect(m).not.toBeNull();
       expect(m![1]).toBe(m![2]);
@@ -312,15 +361,28 @@ describe('&rand', () => {
     }
   });
 
-  it('caps at 100 picks (10 pages) for a large max', async () => {
+  it('caps at 100 picks (100 pages) for a large max', async () => {
     const app = appWithUser({ rymMax: 500 });
     const fake = makeFakeMessage({ content: '&rand' });
-    const captured = patchChannelSend(fake);
+    const pager = patchPager(fake);
     await byName('rand').run({ app, message: fake.message, args: [] });
 
-    const first = captured[0]!;
-    expect(first.data.footer?.text).toBe('page no. 1/10 | set max with &max #_of_rym_ratings');
-    expect((first.data.description ?? '').split('\n')).toHaveLength(10);
+    const pages = await pager.pages();
+    expect(pages).toHaveLength(100);
+    expect(pages[0]!.data.footer?.text).toBe('page no. 1/100 | set max with &max #_of_rym_ratings');
+
+    const picks = pages.map((page) => {
+      const lines = (page.data.description ?? '').split('\n');
+      expect(lines).toHaveLength(1);
+      const m = /\/r0\.5-5\.0,ss\.d,n1\/(\d+)\)$/.exec(lines[0]!);
+      expect(m).not.toBeNull();
+      return parseInt(m![1]!, 10);
+    });
+    expect(new Set(picks).size).toBe(100);
+    for (const p of picks) {
+      expect(p).toBeGreaterThanOrEqual(1);
+      expect(p).toBeLessThanOrEqual(500);
+    }
   });
 });
 
@@ -334,24 +396,61 @@ describe('&wrand', () => {
     );
   });
 
-  it('sends wishlist links within [1..wishMax]', async () => {
+  it('sends one wishlist item per page, unique and within [1..wishMax]', async () => {
     const app = appWithUser({ wishMax: 5 });
     const fake = makeFakeMessage({ content: '&wrand' });
+    const pager = patchPager(fake);
     await byName('wrand').run({ app, message: fake.message, args: [] });
 
-    const embed = fake.embeds[0] as EmbedBuilder;
-    expect(embed.data.title).toBe('🎲  Wishlist Randomizer (WMAX: 5)  🎲');
-    const lines = (embed.data.description ?? '').split('\n');
-    expect(lines).toHaveLength(5);
-    for (const line of lines) {
+    const pages = await pager.pages();
+    expect(pages).toHaveLength(5);
+    expect(pages[0]!.data.title).toBe('🎲  Wishlist Randomizer (WMAX: 5)  🎲');
+    expect(pages[0]!.data.footer?.text).toBe('page no. 1/5 | set wmax with &wmax #');
+
+    const picks = pages.map((page) => {
+      const lines = (page.data.description ?? '').split('\n');
+      expect(lines).toHaveLength(1);
       const m = /^\[Wishlist Item No\. (\d+)\]\(https:\/\/rateyourmusic\.com\/collection\/testrym\/wishlist,n1\/(\d+)\)$/.exec(
-        line,
+        lines[0]!,
       );
       expect(m).not.toBeNull();
-      const p = parseInt(m![1]!, 10);
+      expect(m![1]).toBe(m![2]);
+      return parseInt(m![1]!, 10);
+    });
+    expect(new Set(picks).size).toBe(5);
+    for (const p of picks) {
       expect(p).toBeGreaterThanOrEqual(1);
       expect(p).toBeLessThanOrEqual(5);
     }
+  });
+
+  it('offers reroll arrows with prev disabled on the first page', async () => {
+    const app = appWithUser({ wishMax: 5 });
+    const fake = makeFakeMessage({ content: '&wrand' });
+    const pager = patchPager(fake);
+    await byName('wrand').run({ app, message: fake.message, args: [] });
+
+    const rows = pager.initial?.components ?? [];
+    expect(rows).toHaveLength(1);
+    const buttons = rows[0]!.components as { data: { disabled?: boolean } }[];
+    expect(buttons).toHaveLength(2);
+    expect(buttons[0]!.data.disabled).toBe(true);
+    expect(buttons[1]!.data.disabled).toBeFalsy();
+  });
+
+  it('sends a lone buttonless page when wishMax is 1', async () => {
+    const app = appWithUser({ wishMax: 1 });
+    const fake = makeFakeMessage({ content: '&wrand' });
+    const pager = patchPager(fake);
+    await byName('wrand').run({ app, message: fake.message, args: [] });
+
+    expect(pager.initial?.embeds).toHaveLength(1);
+    expect(pager.initial?.components).toBeUndefined();
+    const embed = pager.initial!.embeds![0]!;
+    expect(embed.data.footer?.text).toBe('page no. 1/1 | set wmax with &wmax #');
+    expect(embed.data.description).toBe(
+      '[Wishlist Item No. 1](https://rateyourmusic.com/collection/testrym/wishlist,n1/1)',
+    );
   });
 });
 

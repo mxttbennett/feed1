@@ -306,7 +306,7 @@ const ch: Command = {
 };
 
 const RAND_MAX_PICKS = 100;
-const RAND_PER_PAGE = 10;
+const RAND_PER_PAGE = 1;
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
