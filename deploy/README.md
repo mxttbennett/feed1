@@ -110,6 +110,18 @@ npm run db:pull                        # host from PROD_SSH_HOST in .env
 npm run db:pull -- ubuntu@<vm-ip>      # or pass it
 ```
 
+The pull shells out to plain `ssh`/`scp`, so it can't tell you which key to use. Give the VM an
+`~/.ssh/config` entry and point `PROD_SSH_HOST` at that alias — a bare IP with the key sitting
+unreferenced in `~/.ssh/` fails with `Permission denied (publickey)`:
+
+```
+Host feed1-prod
+        HostName <vm-ip>
+        User ubuntu
+        IdentityFile ~/.ssh/id_feed1
+        IdentitiesOnly yes
+```
+
 Lands a snapshot at `.data/prod/feed1-prod.sqlite` (gitignored) for TablePlus, `sqlite3`, or
 anything else. It's a point-in-time copy — re-run it for fresh data.
 
