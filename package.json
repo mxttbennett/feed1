@@ -17,7 +17,8 @@
     "test:watch": "vitest",
     "smoke": "tsx test/live/smoke.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:pull": "bash scripts/db-pull.sh"
   },
   "license": "MIT",
   "dependencies": {
