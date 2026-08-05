@@ -16,8 +16,8 @@ describe('schema', () => {
   it('enforces one crown per guild+artist', () => {
     const db = freshDb();
     const row = { guildId: 'g1', userId: 'u1', artistName: 'Autechre', artistPlays: 100 };
-    db.insert(schema.crowns).values(row).run();
-    expect(() => db.insert(schema.crowns).values({ ...row, userId: 'u2' }).run()).toThrow(
+    db.insert(schema.artistCrowns).values(row).run();
+    expect(() => db.insert(schema.artistCrowns).values({ ...row, userId: 'u2' }).run()).toThrow(
       /UNIQUE/,
     );
   });
@@ -45,10 +45,10 @@ describe('schema', () => {
 
   it('stores numeric playcounts as integers', () => {
     const db = freshDb();
-    db.insert(schema.crowns)
+    db.insert(schema.artistCrowns)
       .values({ guildId: 'g1', userId: 'u1', artistName: 'a', artistPlays: 42 })
       .run();
-    const crown = db.select().from(schema.crowns).all()[0];
+    const crown = db.select().from(schema.artistCrowns).all()[0];
     expect(crown?.artistPlays).toBe(42);
     expect(typeof crown?.artistPlays).toBe('number');
   });

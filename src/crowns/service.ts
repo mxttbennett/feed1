@@ -169,11 +169,11 @@ export class CrownService {
       kind === 'artist'
         ? this.db
             .select()
-            .from(schema.crowns)
+            .from(schema.artistCrowns)
             .where(
               and(
-                eq(schema.crowns.guildId, target.guildId),
-                eq(schema.crowns.artistName, target.artistName),
+                eq(schema.artistCrowns.guildId, target.guildId),
+                eq(schema.artistCrowns.artistName, target.artistName),
               ),
             )
             .get()
@@ -218,9 +218,13 @@ export class CrownService {
         updatedAt: new Date(this.now()),
       };
       if (existing) {
-        this.db.update(schema.crowns).set(values).where(eq(schema.crowns.id, existing.id)).run();
+        this.db
+          .update(schema.artistCrowns)
+          .set(values)
+          .where(eq(schema.artistCrowns.id, existing.id))
+          .run();
       } else {
-        this.db.insert(schema.crowns).values(values).run();
+        this.db.insert(schema.artistCrowns).values(values).run();
       }
     } else {
       const values = {
