@@ -25,7 +25,8 @@ Then:
 
 1. `sudo cp /tmp/feed1-src/.env.example /opt/feed1/.env && sudo nano /opt/feed1/.env`
    — fill in `DISCORD_TOKEN` (PROD bot), `LASTFM_API_KEY`, `OWNER_ID`, `PREFIX`,
-   `ERROR_CHANNEL_ID`, `STATUS_CHANNEL_ID`. Then `sudo chmod 600 /opt/feed1/.env`.
+   `ERROR_CHANNEL_ID`, `STATUS_CHANNEL_ID`. `IMGUR_CLIENT_ID` is optional — `-banner`
+   stays off without it, and nothing else needs it. Then `sudo chmod 600 /opt/feed1/.env`.
    The app and its files are owned by `ubuntu` (the deploy user), which the service also runs as.
 2. Create a deploy SSH keypair (`ssh-keygen -t ed25519 -f deploy_key`), append `deploy_key.pub`
    to `~ubuntu/.ssh/authorized_keys` on the VM.

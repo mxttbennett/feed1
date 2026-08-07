@@ -95,3 +95,48 @@ describe('0001 rename crowns -> artist_crowns', () => {
     expect(db.select().from(schema.albumCrowns).all()).toHaveLength(1);
   });
 });
+
+describe('0002 add banner_configs', () => {
+  function dbAtMigration0001() {
+    const db = createDb(':memory:');
+    runMigrations(db, migrationsFolderUpTo(1));
+    return db;
+  }
+
+  it('creates the table and its next-run index', () => {
+    const db = dbAtMigration0001();
+    expect(
+      db
+        .all<{ name: string }>(sql`select name from sqlite_master where type = 'table'`)
+        .map((r) => r.name),
+    ).not.toContain('banner_configs');
+
+    runMigrations(db);
+
+    expect(
+      db
+        .all<{ name: string }>(sql`select name from sqlite_master where type = 'table'`)
+        .map((r) => r.name),
+    ).toContain('banner_configs');
+    expect(
+      db
+        .all<{ name: string }>(
+          sql`select name from sqlite_master where type = 'index' and tbl_name = 'banner_configs'`,
+        )
+        .map((r) => r.name),
+    ).toContain('banner_configs_next_run');
+  });
+
+  it('leaves existing rows untouched', () => {
+    const db = dbAtMigration0001();
+    db.run(
+      sql`insert into artist_crowns (guild_id, user_id, artist_name, artist_plays)
+          values ('g1', 'u1', 'Autechre', 100)`,
+    );
+
+    runMigrations(db);
+
+    expect(db.select().from(schema.artistCrowns).all()).toHaveLength(1);
+    expect(db.select().from(schema.bannerConfigs).all()).toEqual([]);
+  });
+});

@@ -17,9 +17,12 @@ describe('schema', () => {
     const db = freshDb();
     const row = { guildId: 'g1', userId: 'u1', artistName: 'Autechre', artistPlays: 100 };
     db.insert(schema.artistCrowns).values(row).run();
-    expect(() => db.insert(schema.artistCrowns).values({ ...row, userId: 'u2' }).run()).toThrow(
-      /UNIQUE/,
-    );
+    expect(() =>
+      db
+        .insert(schema.artistCrowns)
+        .values({ ...row, userId: 'u2' })
+        .run(),
+    ).toThrow(/UNIQUE/);
   });
 
   it('enforces one album crown per guild+artist+album', () => {
@@ -33,14 +36,40 @@ describe('schema', () => {
     };
     db.insert(schema.albumCrowns).values(row).run();
     expect(() => db.insert(schema.albumCrowns).values(row).run()).toThrow(/UNIQUE/);
-    db.insert(schema.albumCrowns).values({ ...row, albumName: 'Tri Repetae' }).run();
+    db.insert(schema.albumCrowns)
+      .values({ ...row, albumName: 'Tri Repetae' })
+      .run();
   });
 
   it('dedupes crown jobs including artist jobs with defaulted album', () => {
     const db = freshDb();
-    const job = { kind: 'artist' as const, guildId: 'g1', artistName: 'Autechre', requestedBy: 'u1' };
+    const job = {
+      kind: 'artist' as const,
+      guildId: 'g1',
+      artistName: 'Autechre',
+      requestedBy: 'u1',
+    };
     db.insert(schema.crownJobs).values(job).run();
     expect(() => db.insert(schema.crownJobs).values(job).run()).toThrow(/UNIQUE/);
+  });
+
+  it('allows only one banner config per guild', () => {
+    const db = freshDb();
+    const row = {
+      guildId: 'g1',
+      albumUrl: 'https://imgur.com/a/abc',
+      albumHash: 'abc',
+      intervalMinutes: 60,
+      nextRunAt: new Date(0),
+      setBy: 'u1',
+    };
+    db.insert(schema.bannerConfigs).values(row).run();
+    expect(() =>
+      db
+        .insert(schema.bannerConfigs)
+        .values({ ...row, albumHash: 'def' })
+        .run(),
+    ).toThrow(/UNIQUE/);
   });
 
   it('stores numeric playcounts as integers', () => {

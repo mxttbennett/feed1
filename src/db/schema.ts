@@ -108,6 +108,24 @@ export const crownAudit = sqliteTable('crown_audit', {
   createdAt: createdAt(),
 });
 
+export const bannerConfigs = sqliteTable(
+  'banner_configs',
+  {
+    guildId: text('guild_id').primaryKey(),
+    albumUrl: text('album_url').notNull(),
+    albumHash: text('album_hash').notNull(),
+    intervalMinutes: integer('interval_minutes').notNull(),
+    nextRunAt: integer('next_run_at', { mode: 'timestamp_ms' }).notNull(),
+    lastImageUrl: text('last_image_url'),
+    lastAppliedAt: integer('last_applied_at', { mode: 'timestamp_ms' }),
+    failureCount: integer('failure_count').notNull().default(0),
+    lastError: text('last_error'),
+    setBy: text('set_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('banner_configs_next_run').on(t.nextRunAt)],
+);
+
 export const scanTimings = sqliteTable('scan_timings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', { enum: ['artist', 'album'] }).notNull(),
