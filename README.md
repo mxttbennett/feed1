@@ -34,7 +34,9 @@ number and why, and [deploy/README.md](deploy/README.md) for the one-time setup 
 
 Run `-help` for the generated list; `-help <command>` for details, aliases, and usage.
 
-`-banner` is the one command with its own subcommands (`start`, `stop`, `interval`, `next`,
-`status`, `current`). It rotates the server banner through an Imgur album on a per-guild timer.
-It needs `IMGUR_CLIENT_ID` set, a server at boost level 1 or higher, and Manage Server to
-configure; without the env var the feature stays off and the rest of the bot is unaffected.
+`-banner` is the one command with its own subcommands. You build a pool of images with
+`-banner add` — attach one, paste a link, or reply to a message that has one — then
+`-banner start [interval]` rotates the server banner through them. `-banner gallery` flips
+through the pool one image at a time. Images are stored on the bot's own disk, so nothing
+depends on a third-party host staying up. Needs a server at boost level 1 or higher (Discord's
+requirement for having a banner at all), and Manage Server for anything that changes state.

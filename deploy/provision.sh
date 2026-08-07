@@ -41,8 +41,7 @@ sudo systemctl enable feed1
 cat <<'NEXT'
 == next steps ==
 1. Create /opt/feed1/.env (copy .env.example) with the PROD token, Last.fm key,
-   OWNER_ID, ERROR_CHANNEL_ID, STATUS_CHANNEL_ID. IMGUR_CLIENT_ID is optional
-   (-banner stays off without it). chmod 600.
+   OWNER_ID, ERROR_CHANNEL_ID, STATUS_CHANNEL_ID. chmod 600.
 2. Allow the deploy user to restart the service without a password (visudo):
      ubuntu ALL=(root) NOPASSWD: /usr/bin/systemctl stop feed1, /usr/bin/systemctl start feed1, /usr/bin/systemctl restart feed1
 3. Set GitHub repo secrets: DEPLOY_HOST, DEPLOY_USER=ubuntu, DEPLOY_SSH_KEY, DEPLOY_PATH=/opt/feed1

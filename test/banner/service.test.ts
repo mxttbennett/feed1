@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Guild } from 'discord.js';
 import {
@@ -6,34 +9,54 @@ import {
   clampInterval,
 } from '../../src/banner/service.js';
 import type { BannerServiceOptions, RotateResult } from '../../src/banner/service.js';
-import type { ImgurImage } from '../../src/banner/imgur.js';
+import { BannerImageStore } from '../../src/banner/store.js';
+import { inspectImage } from '../../src/banner/image.js';
 import { createDb, runMigrations, schema } from '../../src/db/index.js';
 
-function makeDb() {
+function png(marker: number): Uint8Array {
+  return new Uint8Array([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    0,
+    0,
+    0,
+    13,
+    73,
+    72,
+    68,
+    82,
+    0,
+    0,
+    0x07,
+    0x80,
+    0,
+    0,
+    0x04,
+    0x38,
+    marker,
+  ]);
+}
+const GIF = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x80, 0x07, 0x38, 0x04]);
+
+function makeService(opts: BannerServiceOptions = {}) {
   const db = createDb(':memory:');
   runMigrations(db);
-  return db;
+  const dir = mkdtempSync(join(tmpdir(), 'feed1-svc-'));
+  const store = new BannerImageStore(db, dir);
+  return { db, dir, store, service: new BannerService(db, store, { random: () => 0, ...opts }) };
 }
 
-function img(id: string, over: Partial<ImgurImage> = {}): ImgurImage {
-  return {
-    id,
-    link: `https://i.imgur.com/${id}.png`,
-    type: 'image/png',
-    animated: false,
-    width: 1920,
-    height: 1080,
-    size: 100,
-    ...over,
-  };
+function addImages(store: BannerImageStore, bytes: Uint8Array[]) {
+  return bytes.map((b) => store.add('g1', inspectImage(b), { addedBy: 'u1' }).image);
 }
 
-interface FakeGuild {
-  guild: Guild;
-  bannerSets: string[];
-}
-
-function fakeGuild(features: string[] = ['BANNER'], failWith?: string): FakeGuild {
+function fakeGuild(features: string[] = ['BANNER'], failWith?: string) {
   const bannerSets: string[] = [];
   const guild = {
     id: 'g1',
@@ -48,48 +71,17 @@ function fakeGuild(features: string[] = ['BANNER'], failWith?: string): FakeGuil
   return { guild, bannerSets };
 }
 
-function makeService(
-  db: ReturnType<typeof makeDb>,
-  album: ImgurImage[],
-  opts: Partial<BannerServiceOptions> & {
-    albumError?: Error;
-    imageError?: (url: string) => boolean;
-  } = {},
-) {
-  const fetched: string[] = [];
-  const service = new BannerService(db, 'test-id', {
-    imgur: {
-      fetchAlbumImages: () =>
-        opts.albumError ? Promise.reject(opts.albumError) : Promise.resolve(album),
-    } as never,
-    fetchImage: (url: string) => {
-      fetched.push(url);
-      if (opts.imageError?.(url)) return Promise.reject(new Error(`bad image ${url}`));
-      return Promise.resolve({
-        dataUri: `data:image/png;base64,${url}`,
-        contentType: 'image/png',
-        bytes: 10,
-      });
-    },
-    random: opts.random ?? (() => 0),
-    ...(opts.now ? { now: opts.now } : {}),
-  });
-  return { service, fetched };
-}
-
-function seedConfig(db: ReturnType<typeof makeDb>, over: Record<string, unknown> = {}) {
+function seedConfig(db: ReturnType<typeof createDb>, over: Record<string, unknown> = {}) {
   db.insert(schema.bannerConfigs)
     .values({
       guildId: 'g1',
-      albumUrl: 'https://imgur.com/a/abc',
-      albumHash: 'abc',
       intervalMinutes: 60,
       nextRunAt: new Date(0),
       setBy: 'u1',
       ...over,
     })
     .run();
-  return db.select().from(schema.bannerConfigs).all()[0]!;
+  return db.select().from(schema.bannerConfigs).all().at(-1)!;
 }
 
 describe('clampInterval', () => {
@@ -101,122 +93,106 @@ describe('clampInterval', () => {
 });
 
 describe('BannerService.rotate', () => {
-  it('applies a data uri built from the picked image', async () => {
-    const { service } = makeService(makeDb(), [img('a')]);
+  it('applies a data uri built from the stored bytes', async () => {
+    const { service, store } = makeService();
+    addImages(store, [png(1)]);
     const { guild, bannerSets } = fakeGuild();
 
-    const result = await service.rotate(guild, { albumHash: 'abc', lastImageUrl: null });
-    expect(result).toMatchObject({ ok: true, albumSize: 1 });
-    expect(bannerSets).toEqual(['data:image/png;base64,https://i.imgur.com/a.png']);
+    const result = await service.rotate(guild, null);
+
+    expect(result).toMatchObject({ ok: true, poolSize: 1 });
+    expect(bannerSets[0]).toMatch(/^data:image\/png;base64,/);
   });
 
   it('refuses a guild without the Banner feature', async () => {
-    const { service } = makeService(makeDb(), [img('a')]);
+    const { service, store } = makeService();
+    addImages(store, [png(1)]);
     const { guild, bannerSets } = fakeGuild([]);
 
-    const result = await service.rotate(guild, { albumHash: 'abc', lastImageUrl: null });
-    expect(result).toMatchObject({ ok: false, reason: 'no-banner-feature' });
+    expect(await service.rotate(guild, null)).toMatchObject({
+      ok: false,
+      reason: 'no-banner-feature',
+    });
     expect(bannerSets).toEqual([]);
   });
 
+  it('reports an empty pool', async () => {
+    const { service } = makeService();
+    expect(await service.rotate(fakeGuild().guild, null)).toMatchObject({
+      ok: false,
+      reason: 'no-images',
+    });
+  });
+
   it('excludes gifs unless the guild has ANIMATED_BANNER', async () => {
-    const album = [img('gif', { animated: true, type: 'image/gif' }), img('png')];
+    const plain = makeService();
+    addImages(plain.store, [GIF, png(1)]);
+    const a = await plain.service.rotate(fakeGuild().guild, null);
+    expect((a as Extract<RotateResult, { ok: true }>).image.animated).toBe(false);
 
-    const plain = makeService(makeDb(), album);
-    const a = await plain.service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
-    });
-    expect(a).toMatchObject({ ok: true });
-    expect((a as Extract<RotateResult, { ok: true }>).image.id).toBe('png');
-
-    // gif-only album: a guild with ANIMATED_BANNER must be able to use it, and one without cannot
-    const gifOnly = [img('gif', { animated: true, type: 'image/gif' })];
-    const animated = makeService(makeDb(), gifOnly);
-    const b = await animated.service.rotate(fakeGuild(['BANNER', 'ANIMATED_BANNER']).guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
-    });
-    expect((b as Extract<RotateResult, { ok: true }>).image.id).toBe('gif');
+    const animated = makeService();
+    addImages(animated.store, [GIF]);
+    const b = await animated.service.rotate(fakeGuild(['BANNER', 'ANIMATED_BANNER']).guild, null);
+    expect((b as Extract<RotateResult, { ok: true }>).image.animated).toBe(true);
   });
 
   it('fails cleanly when every image is an unusable gif', async () => {
-    const { service } = makeService(makeDb(), [img('gif', { animated: true, type: 'image/gif' })]);
-    const result = await service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
+    const { service, store } = makeService();
+    addImages(store, [GIF]);
+    expect(await service.rotate(fakeGuild().guild, null)).toMatchObject({
+      ok: false,
+      reason: 'no-usable-images',
+      poolSize: 1,
     });
-    expect(result).toMatchObject({ ok: false, reason: 'no-usable-images', albumSize: 1 });
-  });
-
-  it('reports an empty album', async () => {
-    const { service } = makeService(makeDb(), []);
-    const result = await service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
-    });
-    expect(result).toMatchObject({ ok: false, reason: 'album-empty' });
-  });
-
-  it('reports an unreachable album', async () => {
-    const { service } = makeService(makeDb(), [], { albumError: new Error('404') });
-    const result = await service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
-    });
-    expect(result).toMatchObject({ ok: false, reason: 'album-unavailable' });
   });
 
   it('does not repeat the previous banner when alternatives exist', async () => {
-    const album = [img('a'), img('b')];
     for (const roll of [0, 0.99]) {
-      const { service } = makeService(makeDb(), album, { random: () => roll });
-      const result = await service.rotate(fakeGuild().guild, {
-        albumHash: 'abc',
-        lastImageUrl: 'https://i.imgur.com/a.png',
-      });
-      expect((result as Extract<RotateResult, { ok: true }>).image.id).toBe('b');
+      const { service, store } = makeService({ random: () => roll });
+      const [first] = addImages(store, [png(1), png(2)]);
+
+      const result = await service.rotate(fakeGuild().guild, first!.id);
+
+      expect((result as Extract<RotateResult, { ok: true }>).image.id).not.toBe(first!.id);
     }
   });
 
   it('repeats the only image rather than failing', async () => {
-    const { service } = makeService(makeDb(), [img('a')]);
-    const result = await service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: 'https://i.imgur.com/a.png',
-    });
-    expect(result).toMatchObject({ ok: true });
+    const { service, store } = makeService();
+    const [only] = addImages(store, [png(1)]);
+    expect(await service.rotate(fakeGuild().guild, only!.id)).toMatchObject({ ok: true });
   });
 
-  it('skips a bad image and applies the next one', async () => {
-    // fail whichever the shuffle picks first, so the assertion doesn't depend on the order
-    let attempts = 0;
-    const { service, fetched } = makeService(makeDb(), [img('a'), img('b')], {
-      imageError: () => ++attempts === 1,
-    });
+  it('skips an image missing from disk and applies the next', async () => {
+    const { service, store, dir } = makeService();
+    const images = addImages(store, [png(1), png(2)]);
+    // wipe one file behind the store's back, leaving its row intact
+    rmSync(join(dir, 'g1', `${images[0]!.sha256}.png`), { force: true });
     const { guild, bannerSets } = fakeGuild();
 
-    const result = await service.rotate(guild, { albumHash: 'abc', lastImageUrl: null });
-    expect(result).toMatchObject({ ok: true });
-    expect(fetched).toHaveLength(2);
-    expect(bannerSets).toEqual([`data:image/png;base64,${fetched[1]!}`]);
+    const result = await service.rotate(guild, null);
+
+    expect((result as Extract<RotateResult, { ok: true }>).image.id).toBe(images[1]!.id);
+    expect(bannerSets).toHaveLength(1);
   });
 
-  it('gives up when no image downloads', async () => {
-    const { service } = makeService(makeDb(), [img('a'), img('b')], { imageError: () => true });
-    const result = await service.rotate(fakeGuild().guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
+  it('gives up when no file can be read', async () => {
+    const { service, store, dir } = makeService();
+    addImages(store, [png(1), png(2)]);
+    rmSync(join(dir, 'g1'), { recursive: true, force: true });
+
+    expect(await service.rotate(fakeGuild().guild, null)).toMatchObject({
+      ok: false,
+      reason: 'image-unreadable',
     });
-    expect(result).toMatchObject({ ok: false, reason: 'image-fetch-failed' });
   });
 
   it('surfaces a Discord rejection', async () => {
-    const { service } = makeService(makeDb(), [img('a')]);
-    const result = await service.rotate(fakeGuild(['BANNER'], 'Missing Permissions').guild, {
-      albumHash: 'abc',
-      lastImageUrl: null,
-    });
+    const { service, store } = makeService();
+    addImages(store, [png(1)]);
+
+    const result = await service.rotate(fakeGuild(['BANNER'], 'Missing Permissions').guild, null);
+
     expect(result).toMatchObject({ ok: false, reason: 'set-banner-failed' });
     expect((result as Extract<RotateResult, { ok: false }>).detail).toMatch(/Missing Permissions/);
   });
@@ -224,40 +200,36 @@ describe('BannerService.rotate', () => {
 
 describe('BannerService.recordResult', () => {
   it('advances nextRunAt and clears failures on success', () => {
-    const db = makeDb();
     const now = 1_000_000;
-    const { service } = makeService(db, [img('a')], { now: () => now });
+    const { service, db, store } = makeService({ now: () => now });
+    const [image] = addImages(store, [png(1)]);
     const config = seedConfig(db, { failureCount: 3, lastError: 'boom' });
 
-    service.recordResult(config, { ok: true, image: img('a'), albumSize: 1 });
+    service.recordResult(config, { ok: true, image: image!, poolSize: 1 });
 
     const row = db.select().from(schema.bannerConfigs).all()[0]!;
-    expect(row.failureCount).toBe(0);
-    expect(row.lastError).toBeNull();
-    expect(row.lastImageUrl).toBe('https://i.imgur.com/a.png');
+    expect(row).toMatchObject({ failureCount: 0, lastError: null, lastImageId: image!.id });
     expect(row.nextRunAt.getTime()).toBe(now + 60 * 60_000);
   });
 
-  // A failing guild that never reschedules would be retried on every 60s tick forever.
+  // a failing guild that never reschedules would be retried on every 60s tick forever
   it('advances nextRunAt on failure too', () => {
-    const db = makeDb();
     const now = 1_000_000;
-    const { service } = makeService(db, [], { now: () => now });
+    const { service, db } = makeService({ now: () => now });
     const config = seedConfig(db);
 
-    service.recordResult(config, { ok: false, reason: 'album-empty', detail: 'nothing here' });
+    service.recordResult(config, { ok: false, reason: 'no-images', detail: 'nothing here' });
 
     const row = db.select().from(schema.bannerConfigs).all()[0]!;
     expect(row.failureCount).toBe(1);
-    expect(row.lastError).toMatch(/album-empty/);
+    expect(row.lastError).toMatch(/no-images/);
     expect(row.nextRunAt.getTime()).toBe(now + 60 * 60_000);
   });
 });
 
 describe('BannerService bookkeeping', () => {
   it('flags exhaustion on the failure that reaches the cap', () => {
-    const db = makeDb();
-    const { service } = makeService(db, []);
+    const { service, db } = makeService();
     expect(
       service.isExhausted(seedConfig(db, { failureCount: MAX_CONSECUTIVE_FAILURES - 2 })),
     ).toBe(false);
@@ -268,9 +240,8 @@ describe('BannerService bookkeeping', () => {
   });
 
   it('returns only due configs, soonest first', () => {
-    const db = makeDb();
     const now = 5_000_000;
-    const { service } = makeService(db, [], { now: () => now });
+    const { service, db } = makeService({ now: () => now });
     seedConfig(db, { guildId: 'due-late', nextRunAt: new Date(now - 1000) });
     seedConfig(db, { guildId: 'due-early', nextRunAt: new Date(now - 9000) });
     seedConfig(db, { guildId: 'not-yet', nextRunAt: new Date(now + 1000) });
@@ -278,9 +249,14 @@ describe('BannerService bookkeeping', () => {
     expect(service.dueConfigs().map((c) => c.guildId)).toEqual(['due-early', 'due-late']);
   });
 
-  it('reports unconfigured when there is no client id', () => {
-    const service = new BannerService(makeDb(), undefined);
-    expect(service.configured).toBe(false);
-    expect(() => service.client).toThrow(/not configured/);
+  it('stops and starts without losing the image pool', () => {
+    const { service, store } = makeService();
+    addImages(store, [png(1), png(2)]);
+    service.upsertConfig({ guildId: 'g1', intervalMinutes: 60, setBy: 'u1' });
+
+    expect(service.deleteConfig('g1')).toBe(true);
+
+    expect(service.getConfig('g1')).toBeUndefined();
+    expect(store.count('g1')).toBe(2);
   });
 });

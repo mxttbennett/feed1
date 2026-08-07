@@ -19,8 +19,8 @@
     {
       "idx": 2,
       "version": "6",
-      "when": 1786046579747,
-      "tag": "0002_add_banner_configs",
+      "when": 1786128096849,
+      "tag": "0002_add_banner_tables",
       "breakpoints": true
     }
   ]

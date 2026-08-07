@@ -8,7 +8,6 @@ const envSchema = z.object({
   ERROR_CHANNEL_ID: z.string().optional(),
   STATUS_CHANNEL_ID: z.string().optional(),
   LASTFM_API_KEY: z.string().min(1),
-  IMGUR_CLIENT_ID: z.string().optional(),
   DB_PATH: z.string().default('.data/feed1.sqlite'),
   CHART_QUEUE_PAGE_OVERRIDES: z.string().default(''),
   SMOKE_ALLOW_BOT_ID: z.string().optional(),
@@ -21,8 +20,6 @@ export interface Config {
   errorChannelId: string | undefined;
   statusChannelId: string | undefined;
   lastfmApiKey: string;
-  /** absent leaves banner rotation switched off rather than failing startup */
-  imgurClientId: string | undefined;
   dbPath: string;
   /** guildId -> max chart-queue pages (0 = unlimited); absent guilds use DEFAULT_CHART_QUEUE_PAGES */
   chartQueuePageOverrides: Map<string, number>;
@@ -57,7 +54,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     errorChannelId: e.ERROR_CHANNEL_ID,
     statusChannelId: e.STATUS_CHANNEL_ID,
     lastfmApiKey: e.LASTFM_API_KEY,
-    imgurClientId: e.IMGUR_CLIENT_ID,
     dbPath: e.DB_PATH,
     chartQueuePageOverrides: overrides,
     smokeAllowBotId: e.SMOKE_ALLOW_BOT_ID,

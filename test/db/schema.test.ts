@@ -55,21 +55,30 @@ describe('schema', () => {
 
   it('allows only one banner config per guild', () => {
     const db = freshDb();
-    const row = {
-      guildId: 'g1',
-      albumUrl: 'https://imgur.com/a/abc',
-      albumHash: 'abc',
-      intervalMinutes: 60,
-      nextRunAt: new Date(0),
-      setBy: 'u1',
-    };
+    const row = { guildId: 'g1', intervalMinutes: 60, nextRunAt: new Date(0), setBy: 'u1' };
     db.insert(schema.bannerConfigs).values(row).run();
     expect(() =>
       db
         .insert(schema.bannerConfigs)
-        .values({ ...row, albumHash: 'def' })
+        .values({ ...row, intervalMinutes: 120 })
         .run(),
     ).toThrow(/UNIQUE/);
+  });
+
+  it('allows the same image in two guilds but not twice in one', () => {
+    const db = freshDb();
+    const row = {
+      guildId: 'g1',
+      sha256: 'abc',
+      contentType: 'image/png',
+      bytes: 100,
+      addedBy: 'u1',
+    };
+    db.insert(schema.bannerImages).values(row).run();
+    expect(() => db.insert(schema.bannerImages).values(row).run()).toThrow(/UNIQUE/);
+    db.insert(schema.bannerImages)
+      .values({ ...row, guildId: 'g2' })
+      .run();
   });
 
   it('stores numeric playcounts as integers', () => {

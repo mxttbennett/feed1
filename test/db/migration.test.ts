@@ -96,14 +96,14 @@ describe('0001 rename crowns -> artist_crowns', () => {
   });
 });
 
-describe('0002 add banner_configs', () => {
+describe('0002 add banner tables', () => {
   function dbAtMigration0001() {
     const db = createDb(':memory:');
     runMigrations(db, migrationsFolderUpTo(1));
     return db;
   }
 
-  it('creates the table and its next-run index', () => {
+  it('creates both tables and their indexes', () => {
     const db = dbAtMigration0001();
     expect(
       db
@@ -117,7 +117,7 @@ describe('0002 add banner_configs', () => {
       db
         .all<{ name: string }>(sql`select name from sqlite_master where type = 'table'`)
         .map((r) => r.name),
-    ).toContain('banner_configs');
+    ).toEqual(expect.arrayContaining(['banner_configs', 'banner_images']));
     expect(
       db
         .all<{ name: string }>(
@@ -125,6 +125,13 @@ describe('0002 add banner_configs', () => {
         )
         .map((r) => r.name),
     ).toContain('banner_configs_next_run');
+    expect(
+      db
+        .all<{ name: string }>(
+          sql`select name from sqlite_master where type = 'index' and tbl_name = 'banner_images'`,
+        )
+        .map((r) => r.name),
+    ).toContain('banner_images_guild_sha');
   });
 
   it('leaves existing rows untouched', () => {
@@ -138,5 +145,6 @@ describe('0002 add banner_configs', () => {
 
     expect(db.select().from(schema.artistCrowns).all()).toHaveLength(1);
     expect(db.select().from(schema.bannerConfigs).all()).toEqual([]);
+    expect(db.select().from(schema.bannerImages).all()).toEqual([]);
   });
 });

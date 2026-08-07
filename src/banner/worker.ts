@@ -33,10 +33,6 @@ export class BannerScheduler {
 
   start(): void {
     if (this.running) return;
-    if (!this.service.configured) {
-      console.log('banner rotation is off — IMGUR_CLIENT_ID is not set');
-      return;
-    }
     this.running = true;
     this.stopped = false;
     void this.loop();
@@ -70,7 +66,7 @@ export class BannerScheduler {
       return;
     }
 
-    const result = await this.service.rotate(guild, config);
+    const result = await this.service.rotate(guild, config.lastImageId);
     if (result.ok) {
       this.service.recordResult(config, result);
       return;

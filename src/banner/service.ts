@@ -4,38 +4,29 @@ import { eq } from 'drizzle-orm';
 import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import { KeyedMutex } from '../core/mutex.js';
-import { ImgurClient } from './imgur.js';
-import type { ImgurImage } from './imgur.js';
-import { fetchBannerImage } from './image.js';
-import type { FetchedImage } from './image.js';
+import { toDataUri } from './image.js';
+import type { BannerImage, BannerImageStore } from './store.js';
 
 export const MIN_INTERVAL_MINUTES = 15;
 export const MAX_INTERVAL_MINUTES = 2880;
 export const DEFAULT_INTERVAL_MINUTES = 1440;
 
-/** Consecutive failures before a guild's config is dropped — the lost-boost case. */
+/** Consecutive failures before a guild's rotation is switched off — the lost-boost case. */
 export const MAX_CONSECUTIVE_FAILURES = 5;
 
-/** How many images to try before giving up on a rotation, so one bad file isn't fatal. */
+/** How many images to try before giving up, so one missing file isn't fatal. */
 const MAX_IMAGE_ATTEMPTS = 3;
 
 export type BannerConfig = typeof schema.bannerConfigs.$inferSelect;
 
 export type RotateFailure =
-  | 'no-banner-feature'
-  | 'album-empty'
-  | 'no-usable-images'
-  | 'album-unavailable'
-  | 'image-fetch-failed'
-  | 'set-banner-failed';
+  'no-banner-feature' | 'no-images' | 'no-usable-images' | 'image-unreadable' | 'set-banner-failed';
 
 export type RotateResult =
-  | { ok: true; image: ImgurImage; albumSize: number }
-  | { ok: false; reason: RotateFailure; detail: string; albumSize?: number };
+  | { ok: true; image: BannerImage; poolSize: number }
+  | { ok: false; reason: RotateFailure; detail: string; poolSize?: number };
 
 export interface BannerServiceOptions {
-  imgur?: ImgurClient;
-  fetchImage?: (url: string) => Promise<FetchedImage>;
   now?: () => number;
   random?: () => number;
 }
@@ -46,30 +37,16 @@ export function clampInterval(minutes: number): number {
 
 export class BannerService {
   private readonly locks = new KeyedMutex();
-  private readonly imgur: ImgurClient | undefined;
-  private readonly fetchImage: (url: string) => Promise<FetchedImage>;
   private readonly now: () => number;
   private readonly random: () => number;
 
   constructor(
     private readonly db: Db,
-    clientId: string | undefined,
+    readonly store: BannerImageStore,
     opts: BannerServiceOptions = {},
   ) {
-    this.imgur = opts.imgur ?? (clientId ? new ImgurClient(clientId) : undefined);
-    this.fetchImage = opts.fetchImage ?? ((url) => fetchBannerImage(url));
     this.now = opts.now ?? Date.now;
     this.random = opts.random ?? Math.random;
-  }
-
-  get configured(): boolean {
-    return this.imgur !== undefined;
-  }
-
-  /** Throws when unconfigured — callers must check `configured` first. */
-  get client(): ImgurClient {
-    if (!this.imgur) throw new Error('banner rotation is not configured (no IMGUR_CLIENT_ID)');
-    return this.imgur;
   }
 
   getConfig(guildId: string): BannerConfig | undefined {
@@ -81,8 +58,7 @@ export class BannerService {
   }
 
   deleteConfig(guildId: string): boolean {
-    const existing = this.getConfig(guildId);
-    if (!existing) return false;
+    if (!this.getConfig(guildId)) return false;
     this.db.delete(schema.bannerConfigs).where(eq(schema.bannerConfigs.guildId, guildId)).run();
     return true;
   }
@@ -94,19 +70,15 @@ export class BannerService {
 
   upsertConfig(row: {
     guildId: string;
-    albumUrl: string;
-    albumHash: string;
     intervalMinutes: number;
     setBy: string;
-    lastImageUrl?: string | null;
+    lastImageId?: number | null;
   }): void {
     const values = {
       guildId: row.guildId,
-      albumUrl: row.albumUrl,
-      albumHash: row.albumHash,
       intervalMinutes: row.intervalMinutes,
       nextRunAt: this.scheduleFrom(row.intervalMinutes),
-      lastImageUrl: row.lastImageUrl ?? null,
+      lastImageId: row.lastImageId ?? null,
       lastAppliedAt: new Date(this.now()),
       failureCount: 0,
       lastError: null,
@@ -128,20 +100,14 @@ export class BannerService {
   }
 
   /**
-   * Pick an image from the album and apply it. Serialized per guild — two admins racing
-   * `-banner next` must not produce two overlapping guild edits.
+   * Pick an image and apply it. Serialized per guild — two admins racing `-banner next`
+   * must not produce two overlapping guild edits.
    */
-  rotate(
-    guild: Guild,
-    config: Pick<BannerConfig, 'albumHash' | 'lastImageUrl'>,
-  ): Promise<RotateResult> {
-    return this.locks.run(guild.id, () => this.rotateInner(guild, config));
+  rotate(guild: Guild, lastImageId: number | null): Promise<RotateResult> {
+    return this.locks.run(guild.id, () => this.rotateInner(guild, lastImageId));
   }
 
-  private async rotateInner(
-    guild: Guild,
-    config: Pick<BannerConfig, 'albumHash' | 'lastImageUrl'>,
-  ): Promise<RotateResult> {
+  private async rotateInner(guild: Guild, lastImageId: number | null): Promise<RotateResult> {
     if (!guild.features.includes(GuildFeature.Banner)) {
       return {
         ok: false,
@@ -150,69 +116,61 @@ export class BannerService {
       };
     }
 
-    let album: ImgurImage[];
-    try {
-      album = await this.client.fetchAlbumImages(config.albumHash);
-    } catch (error) {
-      return { ok: false, reason: 'album-unavailable', detail: String(error) };
-    }
-    if (album.length === 0) {
-      return { ok: false, reason: 'album-empty', detail: 'that album has no png/jpeg/gif images' };
+    const pool = this.store.list(guild.id);
+    if (pool.length === 0) {
+      return { ok: false, reason: 'no-images', detail: 'no banner images have been added yet' };
     }
 
     const animatedOk = guild.features.includes(GuildFeature.AnimatedBanner);
-    const usable = album.filter((img) => animatedOk || !img.animated);
+    const usable = pool.filter((image) => animatedOk || !image.animated);
     if (usable.length === 0) {
       return {
         ok: false,
         reason: 'no-usable-images',
-        detail: 'every image in that album is a gif, and this server cannot use animated banners',
-        albumSize: album.length,
+        detail: 'every stored image is a gif, and this server cannot use animated banners',
+        poolSize: pool.length,
       };
     }
 
-    const candidates = this.orderCandidates(usable, config.lastImageUrl);
     let lastDetail = '';
-    for (const image of candidates.slice(0, MAX_IMAGE_ATTEMPTS)) {
-      let fetched: FetchedImage;
-      try {
-        fetched = await this.fetchImage(image.link);
-      } catch (error) {
-        lastDetail = String(error);
+    for (const image of this.orderCandidates(usable, lastImageId).slice(0, MAX_IMAGE_ATTEMPTS)) {
+      const data = this.store.read(image);
+      if (!data) {
+        lastDetail = `image ${image.id} is missing from disk`;
         continue;
       }
       try {
-        await guild.setBanner(fetched.dataUri, 'feed1 banner rotation');
+        await guild.setBanner(toDataUri(data, image.contentType), 'feed1 banner rotation');
       } catch (error) {
         return {
           ok: false,
           reason: 'set-banner-failed',
           detail: String(error),
-          albumSize: album.length,
+          poolSize: pool.length,
         };
       }
-      return { ok: true, image, albumSize: album.length };
+      return { ok: true, image, poolSize: pool.length };
     }
 
     return {
       ok: false,
-      reason: 'image-fetch-failed',
-      detail: lastDetail || 'could not download any image from that album',
-      albumSize: album.length,
+      reason: 'image-unreadable',
+      detail: lastDetail || 'could not read any stored image',
+      poolSize: pool.length,
     };
   }
 
   /** Random order, with the previous banner demoted to last so it can't repeat back to back. */
-  private orderCandidates(images: ImgurImage[], lastImageUrl: string | null): ImgurImage[] {
+  private orderCandidates(images: BannerImage[], lastImageId: number | null): BannerImage[] {
     const shuffled = [...images];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(this.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
     }
-    if (shuffled.length < 2 || !lastImageUrl) return shuffled;
-    const repeats = shuffled.filter((img) => img.link === lastImageUrl);
+    if (shuffled.length < 2 || lastImageId === null) return shuffled;
+    const repeats = shuffled.filter((image) => image.id === lastImageId);
     if (repeats.length === 0) return shuffled;
-    return [...shuffled.filter((img) => img.link !== lastImageUrl), ...repeats];
+    return [...shuffled.filter((image) => image.id !== lastImageId), ...repeats];
   }
 
   /** Record the outcome. `nextRunAt` advances either way so a broken guild can't hot-loop. */
@@ -223,7 +181,7 @@ export class BannerService {
         .update(schema.bannerConfigs)
         .set({
           nextRunAt,
-          lastImageUrl: result.image.link,
+          lastImageId: result.image.id,
           lastAppliedAt: new Date(this.now()),
           failureCount: 0,
           lastError: null,
@@ -243,7 +201,7 @@ export class BannerService {
       .run();
   }
 
-  /** True when the guild has now failed enough times to be dropped. */
+  /** True when the guild has now failed enough times to be switched off. */
   isExhausted(config: BannerConfig): boolean {
     return config.failureCount + 1 >= MAX_CONSECUTIVE_FAILURES;
   }
