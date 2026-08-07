@@ -108,6 +108,43 @@ export const crownAudit = sqliteTable('crown_audit', {
   createdAt: createdAt(),
 });
 
+export const bannerConfigs = sqliteTable(
+  'banner_configs',
+  {
+    guildId: text('guild_id').primaryKey(),
+    intervalMinutes: integer('interval_minutes').notNull(),
+    nextRunAt: integer('next_run_at', { mode: 'timestamp_ms' }).notNull(),
+    /** row id of the last applied image, so a rotation can avoid repeating it */
+    lastImageId: integer('last_image_id'),
+    lastAppliedAt: integer('last_applied_at', { mode: 'timestamp_ms' }),
+    failureCount: integer('failure_count').notNull().default(0),
+    lastError: text('last_error'),
+    setBy: text('set_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('banner_configs_next_run').on(t.nextRunAt)],
+);
+
+export const bannerImages = sqliteTable(
+  'banner_images',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    guildId: text('guild_id').notNull(),
+    /** sha256 of the file bytes; also the on-disk basename */
+    sha256: text('sha256').notNull(),
+    contentType: text('content_type').notNull(),
+    bytes: integer('bytes').notNull(),
+    width: integer('width').notNull().default(0),
+    height: integer('height').notNull().default(0),
+    animated: integer('animated', { mode: 'boolean' }).notNull().default(false),
+    /** where it came from, for `-banner list`; may be an expired Discord CDN link */
+    sourceUrl: text('source_url'),
+    addedBy: text('added_by').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('banner_images_guild_sha').on(t.guildId, t.sha256)],
+);
+
 export const scanTimings = sqliteTable('scan_timings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   kind: text('kind', { enum: ['artist', 'album'] }).notNull(),

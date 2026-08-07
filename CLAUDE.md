@@ -12,6 +12,7 @@ Drizzle, vitest. A 2.0 rewrite of a JavaScript bot preserved at the `legacy` tag
 | `src/lastfm/` | API client + raw response types; **all** Last.fm calls go through `LastfmClient` |
 | `src/db/` | Drizzle schema; migrations in `drizzle/` are applied at startup |
 | `src/crowns/` | crown service + background job worker |
+| `src/banner/` | image validation, on-disk image store, banner rotation service + scheduler |
 | `src/charts/`, `src/ops/` | node-canvas chart rendering; backup and log-reading helpers |
 
 Pure formatting logic is split into a sibling module (`fm.ts` → `fmFormat.ts`) so it can be unit
@@ -29,6 +30,20 @@ tested without Discord or HTTP.
   Edits that only *add* optional detail should swallow their failures so a hiccup can't discard an
   already-good message.
 - Numbers arrive from Last.fm as strings — parse with `toInt()` from `src/lastfm/types.ts`.
+- **Banner images are stored as bytes, never as URLs.** Discord CDN attachment links carry expiring
+  signatures, so a stored URL is dead within a day. `-banner add` downloads once into
+  `.data/banners/<guildId>/<sha256>.<ext>` and everything downstream reads the file. The deploy's
+  `rsync --delete` excludes `.data`, so the pool survives merges; it is *not* in the SQLite backup.
+- **Banner bytes are base64-encoded in-process**, never handed to `setBanner` as a URL. discord.js will
+  fetch a URL for you, but its `resolveImage` throws away the fetched content type and labels
+  everything `image/jpg`, with no timeout and no size cap. `src/banner/image.ts` sniffs the real type
+  from magic bytes instead.
+- `-banner gallery` uses `sendLazyPager` rather than `sendPaginatedEmbed`: pages carry uploaded files,
+  so building them all up front would read the whole pool into memory to show page one.
+- Banner rotation is **deadline-driven, not queued** — `banner_configs.next_run_at` is the truth, and
+  the scheduler polls for due rows. Catch-up is deliberately non-accumulating: a guild that was due 200
+  times during an outage rotates **once** and reschedules from now. `next_run_at` also advances after a
+  *failed* rotation, or a broken guild would be retried every tick forever.
 - Artist crown recalculation is queued to the DB and drained by a worker, not done inline. The
   **album** crown is the exception: `-fm` settles it inline after its rank scans, because the footer
   gif has to say whether the caller holds the crown. The queued album job is enqueued first as the

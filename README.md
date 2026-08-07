@@ -1,8 +1,8 @@
 # feed1
 
 A Last.fm Discord bot written in TypeScript. Now-playing, top-album charts,
-who-knows rankings, a full crowns system, and RateYourMusic link tooling, on prefix
-commands (`-fm`, `-w`, `-wk`, ...).
+who-knows rankings, a full crowns system, RateYourMusic link tooling, and rotating
+server banners, on prefix commands (`-fm`, `-w`, `-wk`, ...).
 
 The pre-rewrite JavaScript codebase is preserved at the git tag [`legacy`](../../tree/legacy).
 
@@ -33,3 +33,10 @@ number and why, and [deploy/README.md](deploy/README.md) for the one-time setup 
 ## Commands
 
 Run `-help` for the generated list; `-help <command>` for details, aliases, and usage.
+
+`-banner` is the one command with its own subcommands. You build a pool of images with
+`-banner add` — attach one, paste a link, or reply to a message that has one — then
+`-banner start [interval]` rotates the server banner through them. `-banner gallery` flips
+through the pool one image at a time. Images are stored on the bot's own disk, so nothing
+depends on a third-party host staying up. Needs a server at boost level 1 or higher (Discord's
+requirement for having a banner at all), and Manage Server for anything that changes state.

@@ -8,6 +8,9 @@ import { makeSnippets } from './snippets.js';
 import { ErrorReporter } from './errors.js';
 import { KeyedMutex } from './mutex.js';
 import { Router } from './router.js';
+import { BannerService } from '../banner/service.js';
+import { BannerImageStore } from '../banner/store.js';
+import { join, dirname } from 'node:path';
 
 export interface Bot {
   client: Client;
@@ -35,6 +38,10 @@ export function createBot(config: Config, db: Db, registry: CommandRegistry): Bo
     snippets: makeSnippets(config.prefix),
     errors: new ErrorReporter(client, config.errorChannelId),
     guildScanLock: new KeyedMutex(),
+    bannerService: new BannerService(
+      db,
+      new BannerImageStore(db, join(dirname(config.dbPath), 'banners')),
+    ),
     registry,
   };
 

@@ -14,7 +14,9 @@ import { crownCommands } from './commands/crowns.js';
 import { chartCommands } from './commands/charts.js';
 import { whoKnowsCommands } from './commands/whoknows.js';
 import { rymCommands } from './commands/rym.js';
+import { bannerCommands } from './commands/banner.js';
 import { adminCommands } from './commands/admin.js';
+import { BannerScheduler } from './banner/worker.js';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -29,6 +31,7 @@ async function main(): Promise<void> {
     ...chartCommands,
     ...whoKnowsCommands,
     ...rymCommands,
+    ...bannerCommands,
     ...adminCommands,
   );
 
@@ -44,6 +47,11 @@ async function main(): Promise<void> {
   const recovered = worker.recoverStuckJobs();
   if (recovered > 0) console.log(`recovered ${recovered} crown jobs from a previous run`);
   worker.start();
+
+  const bannerScheduler = new BannerScheduler(bot.client, bot.app.bannerService, {
+    reportError: (error, context) => bot.app.errors.report(error, context),
+  });
+  bannerScheduler.start();
 
   const backupDir = join(dirname(config.dbPath), 'backups');
   const runBackup = async () => {
@@ -65,6 +73,7 @@ async function main(): Promise<void> {
 
   const shutdown = async () => {
     worker.stop();
+    bannerScheduler.stop();
     await bot.stop();
     process.exit(0);
   };
