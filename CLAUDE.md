@@ -52,16 +52,18 @@ tested without Discord or HTTP.
 ## Migrations
 
 Generate with `npm run db:generate -- --name <what_it_does>`. **Always pass `--name`** — bare
-`db:generate` invents a random `<adjective>_<marvel-character>` tag, which is how `last_used` ended
-up as `0002_ambiguous_roland_deschain`. That tag is the only human-readable label in `_journal.json`,
-in `deploy/README.md`'s rollback steps, and in `git log`.
+`db:generate` invents a random `<adjective>_<marvel-character>` tag, which is the only
+human-readable label in `_journal.json`, in `deploy/README.md`'s rollback steps, and in `git log`.
 
-Two PRs open at once will both generate `000N` and collide on merge. Resolve by **regenerating, not
-renumbering**: delete your `.sql` and snapshot, take `main`'s, then re-run `db:generate` so yours
-chains onto the end. Renaming the files by hand leaves the journal's `when` untouched, and `when` is
-load-bearing twice over — the migrator applies by it and silently skips anything at or below the
-last-applied timestamp, and `scripts/migrationGuard.ts` compares it against the target tag to decide
-whether a rollback is safe.
+The journal's `when` is the apply key, and it is load-bearing twice over: the migrator compares it
+against `__drizzle_migrations.created_at` and silently skips anything at or below the last-applied
+timestamp, and `scripts/migrationGuard.ts` compares it against the target tag to decide whether a
+rollback is safe. The `tag` reaches neither — it only locates the `.sql` file on disk.
+
+So a badly-named migration can be renamed after it has shipped: rename the file, change `tag`, leave
+`when` and the SQL alone. A **collision** is the other case — two PRs open at once both generate
+`000N`. Resolve that by regenerating, not by renumbering: delete your `.sql` and snapshot, take
+`main`'s, then re-run `db:generate` so yours chains onto the end with a fresh `when`.
 
 ## Loop
 
