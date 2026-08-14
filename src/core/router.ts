@@ -1,6 +1,8 @@
 import type { Message } from 'discord.js';
+import { eq } from 'drizzle-orm';
 import type { AppContext } from './command.js';
 import { disabledScope } from './disables.js';
+import { users } from '../db/schema.js';
 
 const COOLDOWN_MS = 2000;
 
@@ -45,6 +47,11 @@ export class Router {
     const last = this.lastUse.get(message.author.id) ?? 0;
     if (now - last < COOLDOWN_MS) return;
     this.lastUse.set(message.author.id, now);
+    this.app.db
+      .update(users)
+      .set({ lastUsed: new Date() })
+      .where(eq(users.discordUserId, message.author.id))
+      .run();
 
     try {
       await command.run({ app: this.app, message, args: parts });
