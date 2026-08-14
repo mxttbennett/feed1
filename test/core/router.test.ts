@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Command } from '../../src/core/command.js';
 import { Router } from '../../src/core/router.js';
 import { disableCommand } from '../../src/core/disables.js';
+import { schema } from '../../src/db/index.js';
 import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
 
 function testCommand(overrides: Partial<Command> = {}): Command & { calls: number } {
@@ -87,6 +88,59 @@ describe('Router', () => {
 
     await router.handle(makeFakeMessage({ content: '&fm', authorId: 'other' }).message);
     expect(cmd.calls).toBe(2);
+  });
+
+  it('records last use when a registered user runs a valid command', async () => {
+    const cmd = testCommand();
+    const app = makeFakeApp([cmd]);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
+    const router = new Router(app);
+    const usedAt = new Date('2026-08-14T12:00:00.000Z');
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(usedAt);
+      await router.handle(makeFakeMessage({ content: '&fm' }).message);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const row = app.db.select().from(schema.users).get();
+    expect(row?.lastUsed).toEqual(usedAt);
+  });
+
+  it('does not insert a user row when an unregistered user runs a command', async () => {
+    const cmd = testCommand();
+    const app = makeFakeApp([cmd]);
+    const router = new Router(app);
+
+    await router.handle(makeFakeMessage({ content: '&fm' }).message);
+
+    expect(cmd.calls).toBe(1);
+    expect(app.db.select().from(schema.users).all()).toEqual([]);
+  });
+
+  it('does not update last use for cooldown-suppressed messages', async () => {
+    const cmd = testCommand();
+    const app = makeFakeApp([cmd]);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
+    const router = new Router(app);
+    const firstUse = new Date('2026-08-14T12:00:00.000Z');
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(firstUse);
+      await router.handle(makeFakeMessage({ content: '&fm' }).message);
+
+      vi.setSystemTime(new Date(firstUse.getTime() + 1000));
+      await router.handle(makeFakeMessage({ content: '&fm' }).message);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const row = app.db.select().from(schema.users).get();
+    expect(cmd.calls).toBe(1);
+    expect(row?.lastUsed).toEqual(firstUse);
   });
 
   it('blocks owner-only commands for non-owners', async () => {
