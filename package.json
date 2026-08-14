@@ -18,7 +18,8 @@
     "smoke": "tsx test/live/smoke.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:pull": "bash scripts/db-pull.sh"
+    "db:pull": "bash scripts/db-pull.sh",
+    "img:pull": "bash scripts/img-pull.sh"
   },
   "license": "MIT",
   "dependencies": {
