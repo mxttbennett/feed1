@@ -131,6 +131,34 @@ database. The pull instead opens prod **read-only** on the box and uses `VACUUM 
 safe against the running bot and physically cannot write to it; what comes down is a standalone
 file with no WAL.
 
+### Backing up the banner images
+
+```sh
+npm run img:pull                       # same host resolution as db:pull
+npm run img:pull -- ubuntu@<vm-ip>
+```
+
+Lands the whole `banners/` tree at `.data/prod/banners/` plus `.data/prod/banners.zip` (both
+gitignored). The zip is for carrying elsewhere — these are PNG/JPEG, so it compresses by well
+under a percent; the point is one file, not a smaller one.
+
+**`db:pull` and `img:pull` are a recovery pair, not alternatives.** The files on disk are named by
+content hash, so on their own they're an unlabelled pile of bytes — it's the `banner_images` rows
+that say which guild each belongs to, what its id is, and who added it. Restoring a pool needs
+both artifacts from around the same time.
+
+Two behaviours worth knowing:
+
+- **The pull is additive — it never deletes.** `rsync` runs without `--delete` on purpose: this is
+  the only copy of these files, so a pull that happens to run after an accidental
+  `-banner remove all` must not carry that deletion into the backup. The local tree can therefore
+  hold images prod no longer has.
+- **Every file is verified against its own name.** `store.add()` writes bytes straight to their
+  final path rather than renaming into place, so an image being added mid-pull can be copied
+  half-written. Since the filename *is* the sha256, the pull re-hashes each file and compares.
+  Failures are renamed to `.corrupt` (kept, not deleted), left out of the zip, and reported with a
+  non-zero exit — re-run to refetch them. Zero verification failures is the normal result.
+
 ## Discord portal checklist (once per bot application)
 
 - Bot → Privileged Gateway Intents: enable **Server Members Intent** and
@@ -145,7 +173,8 @@ file with no WAL.
   `predeploy_*.sqlite` snapshot per deploy. All snapshots use `VACUUM INTO`.
 - `-banner` images live in `/opt/feed1/.data/banners/<guildId>/`, uncapped — each is at most 10 MB,
   so growth is worth an occasional `du -sh`. The deploy's `rsync --delete` excludes `.data`,
-  so they survive merges — but **backups only cover the SQLite file, not these**. Losing the
-  volume means re-adding banners by hand; the rows in `banner_images` will point at files that
-  are gone, and rotation skips them rather than failing.
+  so they survive merges — but **the automated backups only cover the SQLite file, not these**.
+  Pull them by hand with `npm run img:pull` (below). Without a pull, losing the volume means
+  re-adding banners by hand; the rows in `banner_images` will point at files that are gone, and
+  rotation skips them rather than failing.
 - The whole VM is disposable: a fresh one needs only provision.sh + .env + repo secrets update.
