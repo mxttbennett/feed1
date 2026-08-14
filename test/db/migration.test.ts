@@ -96,15 +96,15 @@ describe('0001 rename crowns -> artist_crowns', () => {
   });
 });
 
-describe('0002 add banner tables', () => {
-  function dbAtMigration0001() {
+describe('0003 add banner tables', () => {
+  function dbAtMigration0002() {
     const db = createDb(':memory:');
-    runMigrations(db, migrationsFolderUpTo(1));
+    runMigrations(db, migrationsFolderUpTo(2));
     return db;
   }
 
   it('creates both tables and their indexes', () => {
-    const db = dbAtMigration0001();
+    const db = dbAtMigration0002();
     expect(
       db
         .all<{ name: string }>(sql`select name from sqlite_master where type = 'table'`)
@@ -135,7 +135,7 @@ describe('0002 add banner tables', () => {
   });
 
   it('leaves existing rows untouched', () => {
-    const db = dbAtMigration0001();
+    const db = dbAtMigration0002();
     db.run(
       sql`insert into artist_crowns (guild_id, user_id, artist_name, artist_plays)
           values ('g1', 'u1', 'Autechre', 100)`,
