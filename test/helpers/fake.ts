@@ -8,6 +8,12 @@ import { LastfmClient } from '../../src/lastfm/client.js';
 import { makeSnippets } from '../../src/core/snippets.js';
 import { ErrorReporter } from '../../src/core/errors.js';
 import { KeyedMutex } from '../../src/core/mutex.js';
+import { BannerService } from '../../src/banner/service.js';
+import type { BannerServiceOptions } from '../../src/banner/service.js';
+import { BannerImageStore } from '../../src/banner/store.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export const TEST_ENV = {
   DISCORD_TOKEN: 'test-token',
@@ -21,7 +27,13 @@ export interface FakeApp extends AppContext {
   reportedErrors: string[];
 }
 
-export function makeFakeApp(commands: Command[] = []): FakeApp {
+export interface FakeAppOptions {
+  banner?: BannerServiceOptions;
+  /** where banner image files land; defaults to a fresh temp directory per app */
+  bannerDir?: string;
+}
+
+export function makeFakeApp(commands: Command[] = [], opts: FakeAppOptions = {}): FakeApp {
   const config = loadConfig({ ...TEST_ENV });
   const db = createDb(':memory:');
   runMigrations(db);
@@ -41,6 +53,11 @@ export function makeFakeApp(commands: Command[] = []): FakeApp {
     snippets: makeSnippets(config.prefix),
     errors,
     guildScanLock: new KeyedMutex(),
+    bannerService: new BannerService(
+      db,
+      new BannerImageStore(db, opts.bannerDir ?? mkdtempSync(join(tmpdir(), 'feed1-banners-'))),
+      opts.banner ?? {},
+    ),
     registry,
     reportedErrors,
   };
@@ -58,12 +75,32 @@ export interface FakeMessageOptions {
   failEditsAt?: number[];
   /** stands in for `client.users.fetch`, for the crown-notification DM path */
   fetchUser?: (id: string) => Promise<unknown>;
+  /** false makes every permission check fail, for Manage Server denial paths */
+  memberPermissions?: boolean;
+  /** guild features; defaults to BANNER so banner tests have the capability */
+  guildFeatures?: string[];
+  guildBannerUrl?: string | null;
+  /** rejects `setBanner` with this message instead of recording the call */
+  failSetBanner?: string;
+  /** attachment urls on the invoking message, for `-banner add` */
+  attachmentUrls?: string[];
+  /** the message this one replies to, for `-banner add` in reply to an image */
+  repliedTo?: { attachmentUrls?: string[]; content?: string };
 }
 
 export interface FakeMessage {
   replies: string[];
   embeds: unknown[];
   edits: unknown[];
+  /** every `guild.setBanner` payload, in order */
+  bannerSets: string[];
+  /** every payload sent or updated through a pager, including `files` */
+  payloads: Record<string, unknown>[];
+  /**
+   * Press a pager button. Resolves once the component collector's handler has run,
+   * so the resulting page lands in `payloads`.
+   */
+  click(customId: string, userId?: string): Promise<void>;
   message: Message;
 }
 
@@ -72,6 +109,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
   const replies: string[] = [];
   const embeds: unknown[] = [];
   const edits: unknown[] = [];
+  const bannerSets: string[] = [];
 
   const guildId = opts.guildId === undefined ? 'guild-1' : opts.guildId;
 
@@ -82,10 +120,14 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     displayAvatarURL: () => `https://avatar.example/${id}`,
   }));
 
+  const payloads: Record<string, unknown>[] = [];
+  let onCollect: ((interaction: unknown) => Promise<void> | void) | undefined;
+
   const sent = (payload: unknown) => {
     if (typeof payload === 'string') replies.push(payload);
     else if (payload && typeof payload === 'object') {
       const p = payload as { content?: string; embeds?: unknown[] };
+      payloads.push(p);
       if (p.content) replies.push(p.content);
       if (p.embeds) embeds.push(...p.embeds);
       else replies.push(JSON.stringify(payload));
@@ -105,6 +147,11 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
       },
       react: () => Promise.resolve(),
       delete: () => Promise.resolve(),
+      createMessageComponentCollector: () => ({
+        on: (event: string, handler: (interaction: unknown) => Promise<void> | void) => {
+          if (event === 'collect') onCollect = handler;
+        },
+      }),
     };
   }
 
@@ -120,7 +167,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     member: guildId
       ? {
           displayColor: opts.memberDisplayColor ?? 0,
-          permissions: { has: () => true },
+          permissions: { has: () => opts.memberPermissions ?? true },
         }
       : null,
     guild: guildId
@@ -128,6 +175,13 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
           id: guildId,
           name: `guild-${guildId}`,
           memberCount: 0,
+          features: opts.guildFeatures ?? ['BANNER'],
+          bannerURL: () => opts.guildBannerUrl ?? null,
+          setBanner: (data: string) => {
+            if (opts.failSetBanner) return Promise.reject(new Error(opts.failSetBanner));
+            bannerSets.push(data);
+            return Promise.resolve();
+          },
           members: {
             cache: new Collection<string, unknown>(),
             fetch: () => Promise.resolve(new Collection<string, unknown>()),
@@ -150,11 +204,39 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
         first: () => mentionedUsers[0],
       },
     },
+    attachments: {
+      first: () => (opts.attachmentUrls ?? []).map((url) => ({ url }))[0],
+    },
+    reference: opts.repliedTo ? { messageId: 'replied-1' } : null,
+    fetchReference: () =>
+      opts.repliedTo
+        ? Promise.resolve({
+            attachments: {
+              first: () => (opts.repliedTo?.attachmentUrls ?? []).map((url) => ({ url }))[0],
+            },
+            embeds: [],
+            content: opts.repliedTo.content ?? '',
+          })
+        : Promise.reject(new Error('no reference')),
     reply: sent,
     react: () => Promise.resolve(),
   } as unknown as Message;
 
-  return { replies, embeds, edits, message };
+  const click = async (customId: string, userId = opts.authorId ?? 'user-1') => {
+    if (!onCollect) throw new Error('nothing registered a component collector');
+    await onCollect({
+      customId,
+      user: { id: userId },
+      update: (payload: Record<string, unknown>) => {
+        payloads.push(payload);
+        const pageEmbeds: unknown[] = Array.isArray(payload.embeds) ? payload.embeds : [];
+        embeds.push(...pageEmbeds);
+        return Promise.resolve(undefined);
+      },
+    });
+  };
+
+  return { replies, embeds, edits, bannerSets, payloads, click, message };
 }
 
 /**
@@ -167,11 +249,9 @@ export function withGuildMembers(fake: FakeMessage, ids: string[]): void {
     ids.map((id) => [id, { user: { id, bot: false, tag: `${id}#0`, username: id } }]),
   );
   const cache = new Collection<string, unknown>();
-  (
-    fake.message as unknown as {
-      guild: { id: string; name: string; members: unknown; memberCount: number };
-    }
-  ).guild = {
+  const holder = fake.message as unknown as { guild: Record<string, unknown> };
+  holder.guild = {
+    ...holder.guild,
     id: 'guild-1',
     name: 'Test Guild',
     memberCount: ids.length,
