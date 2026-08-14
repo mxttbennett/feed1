@@ -2,11 +2,7 @@ import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  BannerImageStore,
-  GuildImageLimitReached,
-  MAX_IMAGES_PER_GUILD,
-} from '../../src/banner/store.js';
+import { BannerImageStore } from '../../src/banner/store.js';
 import { inspectImage } from '../../src/banner/image.js';
 import { createDb, runMigrations, schema } from '../../src/db/index.js';
 
@@ -121,13 +117,12 @@ describe('BannerImageStore', () => {
     expect(store.count('g2')).toBe(1);
   });
 
-  it('refuses to go past the per-guild limit', () => {
+  it('keeps accepting images past the old 100-image ceiling', () => {
     const { store } = makeStore();
-    for (let i = 0; i < MAX_IMAGES_PER_GUILD; i++) {
+    for (let i = 0; i < 120; i++) {
       store.add('g1', inspectImage(png(i)), meta);
     }
-    expect(() => store.add('g1', inspectImage(png(999)), meta)).toThrow(GuildImageLimitReached);
-    expect(store.count('g1')).toBe(MAX_IMAGES_PER_GUILD);
+    expect(store.count('g1')).toBe(120);
   });
 
   // the file can vanish under us (disk wipe, manual cleanup); the row must not crash a rotation

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import type { EmbedBuilder } from 'discord.js';
 import { bannerCommands, parseInterval } from '../../src/commands/banner.js';
 import { inspectImage } from '../../src/banner/image.js';
-import { MAX_IMAGES_PER_GUILD } from '../../src/banner/store.js';
 import { schema } from '../../src/db/index.js';
 import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
 import type { FakeApp, FakeMessage } from '../helpers/fake.js';
@@ -213,12 +212,12 @@ describe('&banner add', () => {
     expect(a.bannerService.store.count('guild-1')).toBe(1);
   });
 
-  it('refuses past the per-guild limit', async () => {
+  it('accepts an image on a server that is already past 100', async () => {
     stubFetch({ 'https://cdn.discord/last.png': png(200) });
     const a = app();
     seedImages(
       a,
-      Array.from({ length: MAX_IMAGES_PER_GUILD }, (_, i) => png(i)),
+      Array.from({ length: 100 }, (_, i) => png(i)),
     );
     const fake = makeFakeMessage({
       content: '&banner add',
@@ -227,7 +226,7 @@ describe('&banner add', () => {
 
     await run(a, fake, ['add']);
 
-    expect(fake.replies[0]).toMatch(new RegExp(`at the ${MAX_IMAGES_PER_GUILD} image limit`));
+    expect(fake.replies[0]).toMatch(/added as number 101/);
   });
 });
 
@@ -278,7 +277,7 @@ describe('&banner remove / list', () => {
     await run(a, fake, ['list']);
 
     const embed = (fake.embeds[0] as EmbedBuilder).toJSON();
-    expect(embed.title).toBe(`banner images (2/${MAX_IMAGES_PER_GUILD})`);
+    expect(embed.title).toBe('banner images (2)');
     expect(embed.description).toMatch(/`1\.`.*1920×1080/);
     expect(embed.footer?.text).toMatch(/total/);
   });

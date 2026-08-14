@@ -12,7 +12,6 @@ import {
 import type { BannerConfig, RotateResult } from '../banner/service.js';
 import { ImageTooLarge, UnsupportedImageType, fetchImage, isOffRatio } from '../banner/image.js';
 import type { LoadedImage } from '../banner/image.js';
-import { GuildImageLimitReached, MAX_IMAGES_PER_GUILD } from '../banner/store.js';
 import type { BannerImage } from '../banner/store.js';
 
 const IMAGES_PER_PAGE = 10;
@@ -114,7 +113,7 @@ async function usage(ctx: CommandContext): Promise<unknown> {
         name: 'add',
         value:
           `\`${p}banner add\` — with an image attached, with a link, or as a **reply** to a ` +
-          `message that has one. Up to ${MAX_IMAGES_PER_GUILD} per server.`,
+          `message that has one.`,
       },
       { name: 'list', value: `\`${p}banner list\` — every stored image, with its number.` },
       {
@@ -170,21 +169,10 @@ async function add(ctx: CommandContext, args: string[]): Promise<unknown> {
     );
   }
 
-  let stored;
-  try {
-    stored = app.bannerService.store.add(guild.id, image, {
-      addedBy: message.author.id,
-      sourceUrl: url,
-    });
-  } catch (error) {
-    if (error instanceof GuildImageLimitReached) {
-      return message.reply(
-        `this server is at the ${MAX_IMAGES_PER_GUILD} image limit — ` +
-          `\`${p}banner remove <number>\` to make room.`,
-      );
-    }
-    throw error;
-  }
+  const stored = app.bannerService.store.add(guild.id, image, {
+    addedBy: message.author.id,
+    sourceUrl: url,
+  });
 
   if (!stored.added) {
     return message.reply(`that image is already in the pool (number ${stored.image.id}).`);
@@ -256,7 +244,7 @@ async function list(ctx: CommandContext): Promise<unknown> {
   const pages = paginateLines(images.map(imageLine), IMAGES_PER_PAGE);
   const embeds = pages.map((body, index) =>
     new EmbedBuilder()
-      .setTitle(`banner images (${images.length}/${MAX_IMAGES_PER_GUILD})`)
+      .setTitle(`banner images (${images.length})`)
       .setDescription(body)
       .setFooter({
         text:

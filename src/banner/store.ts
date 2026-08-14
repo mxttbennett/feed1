@@ -6,17 +6,7 @@ import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import type { LoadedImage } from './image.js';
 
-/** Per-guild ceiling, so one server can't fill the VM's disk. */
-export const MAX_IMAGES_PER_GUILD = 100;
-
 export type BannerImage = typeof schema.bannerImages.$inferSelect;
-
-export class GuildImageLimitReached extends Error {
-  constructor() {
-    super(`this server already has ${MAX_IMAGES_PER_GUILD} banner images`);
-    this.name = 'GuildImageLimitReached';
-  }
-}
 
 const EXTENSIONS: Record<string, string> = {
   'image/png': 'png',
@@ -82,8 +72,6 @@ export class BannerImageStore {
       .where(and(eq(schema.bannerImages.guildId, guildId), eq(schema.bannerImages.sha256, sha256)))
       .get();
     if (existing) return { image: existing, added: false };
-
-    if (this.count(guildId) >= MAX_IMAGES_PER_GUILD) throw new GuildImageLimitReached();
 
     const file = this.pathFor(guildId, sha256, image.contentType);
     mkdirSync(dirname(file), { recursive: true });

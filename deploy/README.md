@@ -143,8 +143,8 @@ file with no WAL.
 - Logs: `journalctl -u feed1 -f`
 - DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20), plus a
   `predeploy_*.sqlite` snapshot per deploy. All snapshots use `VACUUM INTO`.
-- `-banner` images live in `/opt/feed1/.data/banners/<guildId>/`, capped at 100 per guild
-  (~200 MB worst case against 45 GB of disk). The deploy's `rsync --delete` excludes `.data`,
+- `-banner` images live in `/opt/feed1/.data/banners/<guildId>/`, uncapped — each is at most 10 MB,
+  so growth is worth an occasional `du -sh`. The deploy's `rsync --delete` excludes `.data`,
   so they survive merges — but **backups only cover the SQLite file, not these**. Losing the
   volume means re-adding banners by hand; the rows in `banner_images` will point at files that
   are gone, and rotation skips them rather than failing.
