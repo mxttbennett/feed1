@@ -5,6 +5,7 @@ import type { LastfmClient } from '../lastfm/client.js';
 import type { Snippets } from './snippets.js';
 import type { ErrorReporter } from './errors.js';
 import type { KeyedMutex } from './mutex.js';
+import type { BannerService } from '../banner/service.js';
 
 /** Everything a command needs beyond the triggering message; assembled once at boot, faked in tests. */
 export interface AppContext {
@@ -15,6 +16,8 @@ export interface AppContext {
   errors: ErrorReporter;
   /** serializes guild-wide member fan-outs (who-knows, crown scans) to one at a time per guild */
   guildScanLock: KeyedMutex;
+  /** shared with the banner scheduler, so both go through the same per-guild rotation lock */
+  bannerService: BannerService;
   registry: CommandRegistry;
 }
 
