@@ -15,6 +15,13 @@
       "when": 1785954122407,
       "tag": "0001_rename_crowns_to_artist_crowns",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786726480344,
+      "tag": "0002_ambiguous_roland_deschain",
+      "breakpoints": true
     }
   ]
 }

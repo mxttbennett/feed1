@@ -18,6 +18,7 @@ export const users = sqliteTable('users', {
   tag: text('tag'),
   chartUrl: text('chart_url'),
   createdAt: createdAt(),
+  lastUsed: integer('last_used', { mode: 'timestamp_ms' }),
 });
 
 export const artistCrowns = sqliteTable(
