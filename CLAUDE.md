@@ -49,6 +49,20 @@ tested without Discord or HTTP.
   gif has to say whether the caller holds the crown. The queued album job is enqueued first as the
   failure path and deleted once the inline scan succeeds.
 
+## Migrations
+
+Generate with `npm run db:generate -- --name <what_it_does>`. **Always pass `--name`** — bare
+`db:generate` invents a random `<adjective>_<marvel-character>` tag, which is how `last_used` ended
+up as `0002_ambiguous_roland_deschain`. That tag is the only human-readable label in `_journal.json`,
+in `deploy/README.md`'s rollback steps, and in `git log`.
+
+Two PRs open at once will both generate `000N` and collide on merge. Resolve by **regenerating, not
+renumbering**: delete your `.sql` and snapshot, take `main`'s, then re-run `db:generate` so yours
+chains onto the end. Renaming the files by hand leaves the journal's `when` untouched, and `when` is
+load-bearing twice over — the migrator applies by it and silently skips anything at or below the
+last-applied timestamp, and `scripts/migrationGuard.ts` compares it against the target tag to decide
+whether a rollback is safe.
+
 ## Loop
 
 ```sh
