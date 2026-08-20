@@ -22,11 +22,8 @@ vi.mock('node:fs', async (importOriginal) => {
 
 const changelog = changelogCommands.find((c) => c.name === 'changelog')!;
 
-// Must run before any test below causes a successful default-path read: a
-// success caches the content module-wide, and the cache short-circuits any
-// later read attempt regardless of path.
 describe('read failures', () => {
-  it('readChangelogFile returns null for a nonexistent path, and does not cache it', () => {
+  it('readChangelogFile returns null for a nonexistent path', () => {
     expect(readChangelogFile('/nonexistent/CHANGELOG.md')).toBeNull();
   });
 
@@ -52,13 +49,12 @@ describe('&changelog', () => {
     expect(first.data.description).toContain(readPackageVersion());
     expect(first.data.footer?.text).toMatch(/^page no\. 1\//);
 
-    if (fake.payloads.length > 0) {
-      await fake.click('next');
-      const second = fake.embeds.find((e) =>
-        (e as EmbedBuilder).data.footer?.text?.startsWith('page no. 2/'),
-      );
-      expect(second).toBeDefined();
-    }
+    expect(fake.payloads.length).toBeGreaterThan(0);
+    await fake.click('next');
+    const second = fake.embeds.find((e) =>
+      (e as EmbedBuilder).data.footer?.text?.startsWith('page no. 2/'),
+    );
+    expect(second).toBeDefined();
   });
 
   it('parses the newest entry to match package.json version (catches a forgotten bump entry)', () => {

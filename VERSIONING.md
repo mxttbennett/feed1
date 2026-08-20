@@ -68,6 +68,9 @@ Mechanics, the migration guard, and DB restores: [deploy/README.md](deploy/READM
 
 The version bump's final commit carries a matching top entry in
 [CHANGELOG.md](CHANGELOG.md): `## [x.y.z] - YYYY-MM-DD` followed by one `-` bullet per
-user-visible change, newest release first. It ships with the deploy and is what `-changelog` shows
-in Discord. The release step also prefers it as the GitHub release body, falling back to
-`--generate-notes` with a CI warning when a version has no entry.
+user-visible change, newest release first. A release with nothing user-visible (a docs- or CI-only
+patch bump) still gets an entry, with a bullet naming what actually changed (e.g. "Internal: docs
+and CI only.") — every released version should appear so `-changelog` has no gaps. It ships with
+the deploy and is what `-changelog` shows in Discord. The release step also prefers it as the
+GitHub release body, falling back to `--generate-notes` with a CI warning when a version has no
+entry.

@@ -8,15 +8,10 @@ import { changelogPages, parseChangelog } from './changelogFormat.js';
 
 const DEFAULT_PATH = fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url));
 
-let cached: string | null = null;
-
 /** `path` is only for testing the failure branch against a nonexistent file. */
 export function readChangelogFile(path: string = DEFAULT_PATH): string | null {
-  if (cached !== null) return cached;
   try {
-    const content = readFileSync(path, 'utf8');
-    cached = content;
-    return content;
+    return readFileSync(path, 'utf8');
   } catch {
     return null;
   }

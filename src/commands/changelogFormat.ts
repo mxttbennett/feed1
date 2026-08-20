@@ -25,15 +25,22 @@ export function parseChangelog(markdown: string): ChangelogEntry[] {
     if (!current) continue;
     const line = raw.trim();
     if (line.length === 0) continue;
-    current.lines.push(line);
+    if (!line.startsWith('-') && current.lines.length > 0) {
+      current.lines[current.lines.length - 1] += ` ${line}`;
+    } else {
+      current.lines.push(line);
+    }
   }
 
   return entries;
 }
 
+function entryHeader(entry: ChangelogEntry): string {
+  return entry.date ? `**v${entry.version}** — ${entry.date}` : `**v${entry.version}**`;
+}
+
 function renderEntry(entry: ChangelogEntry): string {
-  const header = entry.date ? `**v${entry.version}** — ${entry.date}` : `**v${entry.version}**`;
-  return [header, ...entry.lines].join('\n');
+  return [entryHeader(entry), ...entry.lines].join('\n');
 }
 
 /** Greedy-packs whole entries into pages; an over-budget entry splits at line boundaries. */
@@ -52,7 +59,7 @@ export function changelogPages(entries: ChangelogEntry[], budget = 1800): string
     const rendered = renderEntry(entry);
     if (rendered.length > budget) {
       flush();
-      const header = entry.date ? `**v${entry.version}** — ${entry.date}` : `**v${entry.version}**`;
+      const header = entryHeader(entry);
       let chunk = header;
       for (const line of entry.lines) {
         const candidate = `${chunk}\n${line}`;

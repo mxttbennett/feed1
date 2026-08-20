@@ -44,6 +44,18 @@ describe('parseChangelog', () => {
   it('returns an empty array for an empty file', () => {
     expect(parseChangelog('')).toEqual([]);
   });
+
+  it('joins a bullet wrapped across two source lines into one entry line', () => {
+    const md = '## [1.2.3] - 2026-01-01\n\n- did a thing that\n  wraps onto the next line\n- did another thing\n';
+    const entries = parseChangelog(md);
+    expect(entries).toEqual([
+      {
+        version: '1.2.3',
+        date: '2026-01-01',
+        lines: ['- did a thing that wraps onto the next line', '- did another thing'],
+      },
+    ]);
+  });
 });
 
 describe('changelogPages', () => {
