@@ -123,6 +123,9 @@ jobs:
         run: |
           mkdir -p stage
           cp -r dist drizzle images deploy package.json package-lock.json NotoSansCJKjp-Regular.otf stage/
+          # Guarded, not joined into the cp above: rolling back to any tag cut
+          # before this file existed must not abort the staging step.
+          if [ -f CHANGELOG.md ]; then cp CHANGELOG.md stage/; fi
           ssh -i ~/.ssh/id_ed25519 "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
             "mkdir -p '${{ secrets.DEPLOY_PATH }}/incoming'"
           rsync -az --delete -e "ssh -i ~/.ssh/id_ed25519" \
@@ -185,5 +188,11 @@ jobs:
             exit 1
           fi
 
-          gh release create "$tag" --title "$tag" --generate-notes --target "${{ github.sha }}"
+          npx tsx scripts/changelogSection.ts "$version" > /tmp/notes.md || true
+          if [ -s /tmp/notes.md ]; then
+            gh release create "$tag" --title "$tag" --notes-file /tmp/notes.md --target "${{ github.sha }}"
+          else
+            echo "::warning::no CHANGELOG.md entry for $version"
+            gh release create "$tag" --title "$tag" --generate-notes --target "${{ github.sha }}"
+          fi
           echo "released $tag"
