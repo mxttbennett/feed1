@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.7.0] - 2026-08-20
+
+- `-changelog` (alias `-changes`) pages through this file in Discord, newest release first.
+- GitHub release notes now come from the changelog entry for that version when one exists.
+
 ## [2.6.3] - 2026-08-20
 
 - Command runs are tallied per user and per command.
