@@ -53,6 +53,8 @@ tested without Discord or HTTP.
   **album** crown is the exception: `-fm` settles it inline after its rank scans, because the footer
   gif has to say whether the caller holds the crown. The queued album job is enqueued first as the
   failure path and deleted once the inline scan succeeds.
+- `-changelog` reads `CHANGELOG.md` from the repo root at runtime (`src/commands/changelog.ts`), so
+  it must stay in the deploy's staged path list alongside `dist`, `drizzle`, etc.
 
 ## Migrations
 
@@ -82,4 +84,5 @@ VM, DB backup, `systemctl restart feed1`. CI (typecheck, lint, test, build) runs
 **Every PR merged to `main` must bump `version` in `package.json`** — docs and CI-only changes
 included, as a patch. The merge tags that version and cuts a release; an unchanged version leaves
 the deploy fine but turns the run red. Read [VERSIONING.md](VERSIONING.md) before choosing the
-number; it owns the rules, and `deploy/README.md` covers rollback mechanics.
+number; it owns the rules, and `deploy/README.md` covers rollback mechanics. The bump commit also
+carries a matching `CHANGELOG.md` entry, which becomes the GitHub release body.

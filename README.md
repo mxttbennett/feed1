@@ -28,7 +28,8 @@ npm run dev
 GitHub Actions deploys `main` to an Oracle Cloud free-tier VM over SSH. Bump `version` in
 `package.json` as part of your PR; each merge tags that version and publishes a
 [GitHub Release](../../releases). Every merge bumps — see [VERSIONING.md](VERSIONING.md) for which
-number and why, and [deploy/README.md](deploy/README.md) for the one-time setup and rollbacks.
+number and why, and [deploy/README.md](deploy/README.md) for the one-time setup and rollbacks. Add
+a matching entry to [CHANGELOG.md](CHANGELOG.md) in the same commit.
 
 ## Commands
 
@@ -40,3 +41,5 @@ Run `-help` for the generated list; `-help <command>` for details, aliases, and 
 through the pool one image at a time. Images are stored on the bot's own disk, so nothing
 depends on a third-party host staying up. Needs a server at boost level 1 or higher (Discord's
 requirement for having a banner at all), and Manage Server for anything that changes state.
+
+`-changelog` (alias `-changes`) pages through [CHANGELOG.md](CHANGELOG.md) from inside Discord.
