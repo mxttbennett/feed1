@@ -107,6 +107,10 @@ describe('Router', () => {
 
     const row = app.db.select().from(schema.users).get();
     expect(row?.lastUsed).toEqual(usedAt);
+    expect(row?.commandCount).toBe(1);
+    expect(app.db.select().from(schema.commandUsage).all()).toMatchObject([
+      { userId: 'user-1', commandName: 'fm', count: 1, lastUsed: usedAt },
+    ]);
   });
 
   it('does not insert a user row when an unregistered user runs a command', async () => {
@@ -118,6 +122,7 @@ describe('Router', () => {
 
     expect(cmd.calls).toBe(1);
     expect(app.db.select().from(schema.users).all()).toEqual([]);
+    expect(app.db.select().from(schema.commandUsage).all()).toEqual([]);
   });
 
   it('does not update last use for cooldown-suppressed messages', async () => {
@@ -141,6 +146,45 @@ describe('Router', () => {
     const row = app.db.select().from(schema.users).get();
     expect(cmd.calls).toBe(1);
     expect(row?.lastUsed).toEqual(firstUse);
+    expect(row?.commandCount).toBe(1);
+    expect(app.db.select().from(schema.commandUsage).all()).toMatchObject([
+      { commandName: 'fm', count: 1 },
+    ]);
+  });
+
+  it('tallies each command under its canonical name and keeps the total in step', async () => {
+    const fm = testCommand();
+    const wk = testCommand({ name: 'wk', aliases: [] });
+    const app = makeFakeApp([fm, wk]);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
+    const router = new Router(app);
+    const start = new Date('2026-08-20T12:00:00.000Z');
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(start);
+      await router.handle(makeFakeMessage({ content: '&fm' }).message);
+      vi.setSystemTime(new Date(start.getTime() + 5000));
+      await router.handle(makeFakeMessage({ content: '&f' }).message);
+      vi.setSystemTime(new Date(start.getTime() + 10000));
+      await router.handle(makeFakeMessage({ content: '&wk' }).message);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const user = app.db.select().from(schema.users).get();
+    expect(user?.commandCount).toBe(3);
+
+    const usage = app.db
+      .select()
+      .from(schema.commandUsage)
+      .orderBy(schema.commandUsage.commandName)
+      .all();
+    expect(usage.map((r) => [r.commandName, r.count])).toEqual([
+      ['fm', 2],
+      ['wk', 1],
+    ]);
+    expect(usage.reduce((sum, r) => sum + r.count, 0)).toBe(user?.commandCount);
   });
 
   it('blocks owner-only commands for non-owners', async () => {

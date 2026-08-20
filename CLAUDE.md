@@ -44,6 +44,11 @@ tested without Discord or HTTP.
   the scheduler polls for due rows. Catch-up is deliberately non-accumulating: a guild that was due 200
   times during an outage rotates **once** and reschedules from now. `next_run_at` also advances after a
   *failed* rotation, or a broken guild would be retried every tick forever.
+- **Command counters are two views of one number.** `users.command_count` is a denormalised total
+  and `command_usage` holds the per-command breakdown; `SUM(command_usage.count)` for a user equals
+  their `command_count`. `Router.recordUse` writes both in a single transaction and skips both when
+  the caller has no `users` row, so the two can't drift. Counting happens *before* `command.run`, so
+  these are attempts, not successes, and cooldown-suppressed messages don't count.
 - Artist crown recalculation is queued to the DB and drained by a worker, not done inline. The
   **album** crown is the exception: `-fm` settles it inline after its rank scans, because the footer
   gif has to say whether the caller holds the crown. The queued album job is enqueued first as the

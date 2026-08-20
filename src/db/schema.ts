@@ -19,7 +19,26 @@ export const users = sqliteTable('users', {
   chartUrl: text('chart_url'),
   createdAt: createdAt(),
   lastUsed: integer('last_used', { mode: 'timestamp_ms' }),
+  commandCount: integer('command_count').notNull().default(0),
 });
+
+/**
+ * Per-command tallies. `SUM(count)` for a user equals that user's
+ * `users.command_count` — the router writes both in one transaction.
+ */
+export const commandUsage = sqliteTable(
+  'command_usage',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: text('user_id').notNull(),
+    /** canonical command name, never an alias */
+    commandName: text('command_name').notNull(),
+    count: integer('count').notNull().default(0),
+    lastUsed: integer('last_used', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex('command_usage_user_command').on(t.userId, t.commandName)],
+);
 
 export const artistCrowns = sqliteTable(
   'artist_crowns',
