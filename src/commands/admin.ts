@@ -1,8 +1,14 @@
-import { AttachmentBuilder, EmbedBuilder, PermissionFlagsBits } from 'discord.js';
+import {
+  AttachmentBuilder,
+  EmbedBuilder,
+  PermissionFlagsBits,
+  PermissionsBitField,
+} from 'discord.js';
 import type { Command } from '../core/command.js';
 import { disableCommand, enableCommand } from '../core/disables.js';
 import { sendable } from '../core/channel.js';
 import { readPackageVersion } from '../core/version.js';
+import { REPO_URL } from '../core/links.js';
 import { parseLogsArgs, readLogs } from '../ops/logs.js';
 
 const PROTECTED = new Set(['enable', 'disable', 'help']);
@@ -110,6 +116,7 @@ const botinfo: Command = {
     const client = message.client;
     const embed = new EmbedBuilder()
       .setTitle('feed1')
+      .setURL(REPO_URL)
       .setDescription('a Last.fm Discord bot')
       .addFields(
         { name: 'version', value: readPackageVersion(), inline: true },
@@ -117,6 +124,53 @@ const botinfo: Command = {
         { name: 'uptime', value: `${Math.floor(process.uptime() / 60)} min`, inline: true },
         { name: 'commands', value: String(app.registry.all().length), inline: true },
       );
+    return sendable(message).send({ embeds: [embed] });
+  },
+};
+
+const invite: Command = {
+  name: 'invite',
+  aliases: ['inv'],
+  description: 'Gives you a link to add feed1 to another server.',
+  usage: 'invite',
+  guildOnly: false,
+  async run({ message }) {
+    const botId = message.client.user?.id;
+    if (!botId) return message.reply(`still starting up — try again in a second.`);
+
+    const permissions = new PermissionsBitField([
+      PermissionFlagsBits.ViewChannel,
+      PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.EmbedLinks,
+      PermissionFlagsBits.AttachFiles,
+      PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.AddReactions,
+      PermissionFlagsBits.ManageGuild,
+    ]).bitfield.toString();
+    const inviteUrl = `https://discord.com/oauth2/authorize?client_id=${botId}&permissions=${permissions}&scope=bot`;
+
+    const embed = new EmbedBuilder()
+      .setTitle('add feed1 to your server')
+      .setURL(inviteUrl)
+      .setDescription(
+        `[click here](${inviteUrl}) to add feed1 to another server. Manage Server is only used ` +
+          `by \`-banner\` for banner rotation.`,
+      );
+    return sendable(message).send({ embeds: [embed] });
+  },
+};
+
+const github: Command = {
+  name: 'github',
+  aliases: ['repo', 'source'],
+  description: `Links the bot's source code on GitHub.`,
+  usage: 'github',
+  guildOnly: false,
+  async run({ message }) {
+    const embed = new EmbedBuilder()
+      .setTitle('feed1 on GitHub')
+      .setURL(REPO_URL)
+      .setDescription(REPO_URL);
     return sendable(message).send({ embeds: [embed] });
   },
 };
@@ -177,6 +231,8 @@ export const adminCommands: Command[] = [
   help,
   ping,
   botinfo,
+  invite,
+  github,
   restart,
   logs,
 ];

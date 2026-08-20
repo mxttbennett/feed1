@@ -3,6 +3,7 @@ import type { EmbedBuilder } from 'discord.js';
 import { changelogCommands, readChangelogFile } from '../../src/commands/changelog.js';
 import { parseChangelog } from '../../src/commands/changelogFormat.js';
 import { readPackageVersion } from '../../src/core/version.js';
+import { RELEASES_URL } from '../../src/core/links.js';
 import { makeFakeMessage } from '../helpers/fake.js';
 
 // Controls whether the mocked `readFileSync` below throws, so the command's
@@ -48,6 +49,7 @@ describe('&changelog', () => {
     const first = fake.embeds[0] as EmbedBuilder;
     expect(first.data.description).toContain(readPackageVersion());
     expect(first.data.footer?.text).toMatch(/^page no\. 1\//);
+    expect(first.data.url).toBe(RELEASES_URL);
 
     expect(fake.payloads.length).toBeGreaterThan(0);
     await fake.click('next');
