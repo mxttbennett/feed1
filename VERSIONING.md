@@ -25,10 +25,12 @@ a tag that already exists**, so a merge without a bump turns `main` red; and one
 keeps releases and merge commits one-to-one, which is what makes `-botinfo` a useful answer to
 "what's actually running?".
 
-Put the bump in its own final commit so it's easy to see and easy to redo after a rebase:
+Put the bump in its own final commit so it's easy to see and easy to redo after a rebase, together
+with the changelog entry (below) for the same version:
 
 ```sh
 npm version 2.3.0 --no-git-tag-version   # updates package.json + package-lock.json
+# add a "## [2.3.0] - YYYY-MM-DD" entry to CHANGELOG.md
 git commit -am "chore(release): 2.3.0"
 ```
 
@@ -61,3 +63,11 @@ rolling back past a migration is refused unless forced. A change that adds a mig
 rollback boundary, which is worth keeping in mind when deciding how much to put in one PR.
 
 Mechanics, the migration guard, and DB restores: [deploy/README.md](deploy/README.md).
+
+## The changelog
+
+The version bump's final commit carries a matching top entry in
+[CHANGELOG.md](CHANGELOG.md): `## [x.y.z] - YYYY-MM-DD` followed by one `-` bullet per
+user-visible change, newest release first. It ships with the deploy and is what `-changelog` shows
+in Discord. The release step also prefers it as the GitHub release body, falling back to
+`--generate-notes` with a CI warning when a version has no entry.

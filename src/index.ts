@@ -16,6 +16,7 @@ import { whoKnowsCommands } from './commands/whoknows.js';
 import { rymCommands } from './commands/rym.js';
 import { bannerCommands } from './commands/banner.js';
 import { adminCommands } from './commands/admin.js';
+import { changelogCommands } from './commands/changelog.js';
 import { BannerScheduler } from './banner/worker.js';
 
 async function main(): Promise<void> {
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
     ...rymCommands,
     ...bannerCommands,
     ...adminCommands,
+    ...changelogCommands,
   );
 
   const bot = createBot(config, db, registry);
