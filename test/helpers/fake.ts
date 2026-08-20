@@ -86,6 +86,7 @@ export interface FakeMessageOptions {
   attachmentUrls?: string[];
   /** the message this one replies to, for `-banner add` in reply to an image */
   repliedTo?: { attachmentUrls?: string[]; content?: string };
+  botId?: string;
 }
 
 export interface FakeMessage {
@@ -198,6 +199,7 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     client: {
       guilds: { cache: { size: 1 } },
       users: { fetch: opts.fetchUser ?? (() => Promise.resolve(null)) },
+      user: { id: opts.botId ?? 'bot-1' },
     },
     mentions: {
       users: {
