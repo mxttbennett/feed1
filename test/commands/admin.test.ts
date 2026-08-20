@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { PermissionsBitField } from 'discord.js';
 import type { EmbedBuilder } from 'discord.js';
 import { adminCommands } from '../../src/commands/admin.js';
 import { fm } from '../../src/commands/fm.js';
 import { Router } from '../../src/core/router.js';
 import { readPackageVersion } from '../../src/core/version.js';
+import { REPO_URL } from '../../src/core/links.js';
 import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
 
 const byName = (name: string) => adminCommands.find((c) => c.name === name)!;
@@ -57,6 +59,8 @@ describe('&help', () => {
     const embed = fake.embeds[0] as EmbedBuilder;
     expect(embed.data.description).toContain('`fm`');
     expect(embed.data.description).toContain('`help`');
+    expect(embed.data.description).toContain('`invite`');
+    expect(embed.data.description).toContain('`github`');
     expect(embed.data.description).not.toContain('`r`');
   });
 
@@ -80,5 +84,44 @@ describe('&botinfo', () => {
     const version = embed.data.fields?.find((f) => f.name === 'version');
     expect(version?.value).toBe(readPackageVersion());
     expect(version?.value).not.toBe('unknown');
+  });
+});
+
+describe('&invite', () => {
+  it('builds an oauth2 invite url with the expected permissions', async () => {
+    const app = appWithAll();
+    const fake = makeFakeMessage({ content: '&invite' });
+    await byName('invite').run({ app, message: fake.message, args: [] });
+
+    const embed = fake.embeds[0] as EmbedBuilder;
+    const url = new URL(embed.data.url!);
+    expect(url.searchParams.get('client_id')).toBe('bot-1');
+    expect(url.searchParams.get('scope')).toBe('bot');
+
+    const permissions = new PermissionsBitField(
+      BigInt(url.searchParams.get('permissions')!),
+    );
+    expect(permissions.has('ManageGuild')).toBe(true);
+    expect(permissions.has('AddReactions')).toBe(true);
+  });
+
+  it('replies with a still-starting-up message when client.user is absent', async () => {
+    const app = appWithAll();
+    const fake = makeFakeMessage({ content: '&invite' });
+    (fake.message.client as { user: unknown }).user = null;
+    await byName('invite').run({ app, message: fake.message, args: [] });
+    expect(fake.replies[0]).toBe('still starting up — try again in a second.');
+  });
+});
+
+describe('&github', () => {
+  it('links the repo in both the url and description', async () => {
+    const app = appWithAll();
+    const fake = makeFakeMessage({ content: '&github' });
+    await byName('github').run({ app, message: fake.message, args: [] });
+
+    const embed = fake.embeds[0] as EmbedBuilder;
+    expect(embed.data.url).toBe(REPO_URL);
+    expect(embed.data.description).toContain(REPO_URL);
   });
 });

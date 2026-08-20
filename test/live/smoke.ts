@@ -55,10 +55,25 @@ const CASES: SmokeCase[] = [
     describe: 'mylogin answers',
   },
   {
-    name: 'unknown command silence is not asserted',
+    name: 'botinfo',
     send: `${PREFIX}botinfo`,
     expect: (m) => m.embeds[0]?.title === 'feed1',
     describe: 'botinfo embed',
+  },
+  {
+    name: 'invite',
+    send: `${PREFIX}invite`,
+    expect: (m) => {
+      const url = m.embeds[0]?.url ?? '';
+      return url.includes('client_id=') && url.includes('scope=bot');
+    },
+    describe: 'invite embed carries a real oauth2 url',
+  },
+  {
+    name: 'github',
+    send: `${PREFIX}github`,
+    expect: (m) => m.embeds[0]?.title === 'feed1 on GitHub',
+    describe: 'github embed',
   },
 ];
 

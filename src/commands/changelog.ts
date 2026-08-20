@@ -4,6 +4,7 @@ import { EmbedBuilder } from 'discord.js';
 import type { Command } from '../core/command.js';
 import { sendPaginatedEmbed } from '../core/paginate.js';
 import { readPackageVersion } from '../core/version.js';
+import { RELEASES_URL } from '../core/links.js';
 import { changelogPages, parseChangelog } from './changelogFormat.js';
 
 const DEFAULT_PATH = fileURLToPath(new URL('../../CHANGELOG.md', import.meta.url));
@@ -32,6 +33,7 @@ const changelog: Command = {
     const embeds = pages.map((description, i) =>
       new EmbedBuilder()
         .setTitle('feed1 changelog')
+        .setURL(RELEASES_URL)
         .setColor(message.member?.displayColor ?? null)
         .setDescription(description)
         .setFooter({
