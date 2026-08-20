@@ -8,6 +8,12 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.8.0] - 2026-08-20
+
+- `-invite` (alias `-inv`) gives you a link to add feed1 to another server.
+- `-github` (aliases `-repo`, `-source`) links the bot's source code.
+- The `-changelog` and `-botinfo` titles now link out to GitHub.
+
 ## [2.7.0] - 2026-08-20
 
 - `-changelog` (alias `-changes`) pages through this file in Discord, newest release first.
