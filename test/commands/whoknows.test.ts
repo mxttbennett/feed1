@@ -2,6 +2,7 @@ import nock from 'nock';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { EmbedBuilder } from 'discord.js';
 import { whoKnowsCommands } from '../../src/commands/whoknows.js';
+import { CommandRegistry } from '../../src/core/command.js';
 import { schema } from '../../src/db/index.js';
 import { makeFakeApp, makeFakeMessage, withGuildMembers } from '../helpers/fake.js';
 import type { Message } from 'discord.js';
@@ -147,7 +148,7 @@ describe('&a', () => {
 
     const fake = makeFakeMessage({ content: '&a Autechre | Confield' });
     withGuildMembers(fake, ['user-1']);
-    await byName('a').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
+    await byName('wka').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
 
     const embed = fake.embeds[0] as EmbedBuilder;
     expect(embed.data.title).toBe('*Confield*');
@@ -159,7 +160,7 @@ describe('&a', () => {
     const app = makeFakeApp(whoKnowsCommands);
     app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
     const fake = makeFakeMessage({ content: '&a Confield' });
-    await byName('a').run({ app, message: fake.message, args: ['Confield'] });
+    await byName('wka').run({ app, message: fake.message, args: ['Confield'] });
     expect(fake.replies[0]).toContain('<artist> | <album>');
   });
 });
@@ -169,5 +170,15 @@ describe('message shape', () => {
     const fake = makeFakeMessage({ content: 'x' });
     const m: Message = fake.message;
     expect(m.content).toBe('x');
+  });
+});
+
+describe('command names', () => {
+  it('registers the album command as wka with a as an alias', () => {
+    const registry = new CommandRegistry();
+    registry.register(...whoKnowsCommands);
+
+    expect(registry.resolve('a')).toBe(byName('wka'));
+    expect(registry.canonicalName('a')).toBe('wka');
   });
 });
