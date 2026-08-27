@@ -136,14 +136,15 @@ const wk: Command = {
   run: (ctx) => runWhoKnows(ctx, 'artist'),
 };
 
-const a: Command = {
-  name: 'a',
+const wka: Command = {
+  name: 'wka',
+  aliases: ['a'],
   description:
     'Shows who in this server has scrobbled an album the most, and settles the album crown. ' +
     'With no arguments it checks the album you are currently listening to.',
-  usage: 'a [artist | album]',
+  usage: 'wka [artist | album]',
   guildOnly: true,
   run: (ctx) => runWhoKnows(ctx, 'album'),
 };
 
-export const whoKnowsCommands: Command[] = [wk, a];
+export const whoKnowsCommands: Command[] = [wk, wka];

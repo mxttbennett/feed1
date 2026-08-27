@@ -148,3 +148,43 @@ describe('0003 add banner tables', () => {
     expect(db.select().from(schema.bannerImages).all()).toEqual([]);
   });
 });
+
+describe('0005 rename the a command to wka', () => {
+  function dbAtMigration0004() {
+    const db = createDb(':memory:');
+    runMigrations(db, migrationsFolderUpTo(4));
+    return db;
+  }
+
+  it('carries usage counts and disables across the rename', () => {
+    const db = dbAtMigration0004();
+    db.run(
+      sql`insert into command_usage (user_id, command_name, count, last_used)
+          values ('u1', 'a', 7, 0), ('u1', 'wk', 3, 0)`,
+    );
+    db.run(
+      sql`insert into disables (guild_id, channel_id, command_name)
+          values ('g1', null, 'a'), ('g1', 'c1', 'fm')`,
+    );
+
+    runMigrations(db);
+
+    expect(
+      db
+        .select()
+        .from(schema.commandUsage)
+        .all()
+        .map((r) => [r.commandName, r.count]),
+    ).toEqual([
+      ['wka', 7],
+      ['wk', 3],
+    ]);
+    expect(
+      db
+        .select()
+        .from(schema.disables)
+        .all()
+        .map((r) => r.commandName),
+    ).toEqual(['wka', 'fm']);
+  });
+});
