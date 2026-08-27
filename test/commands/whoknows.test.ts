@@ -8,6 +8,7 @@ import { makeFakeApp, makeFakeMessage, withGuildMembers } from '../helpers/fake.
 import type { Message } from 'discord.js';
 
 const BASE = 'https://ws.audioscrobbler.com';
+const CDN = 'https://lastfm.freetls.fastly.net/i/u';
 const byName = (name: string) => whoKnowsCommands.find((c) => c.name === name)!;
 
 beforeAll(() => nock.disableNetConnect());
@@ -141,7 +142,8 @@ describe('&a', () => {
           image: [
             { size: 'small', '#text': '' },
             { size: 'medium', '#text': '' },
-            { size: 'large', '#text': 'https://img.example/l.png' },
+            { size: 'large', '#text': `${CDN}/174s/confield.png` },
+            { size: 'extralarge', '#text': `${CDN}/300x300/confield.png` },
           ],
         },
       });
@@ -153,6 +155,7 @@ describe('&a', () => {
     const embed = fake.embeds[0] as EmbedBuilder;
     expect(embed.data.title).toBe('*Confield*');
     expect(embed.data.author?.name).toBe('Autechre');
+    expect(embed.data.thumbnail?.url).toBe(`${CDN}/confield.png`);
     expect(app.db.select().from(schema.albumCrowns).all()[0]!.albumName).toBe('Confield');
   });
 

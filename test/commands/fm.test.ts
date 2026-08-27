@@ -13,6 +13,7 @@ import {
 } from '../../src/commands/fmFormat.js';
 
 const BASE = 'https://ws.audioscrobbler.com';
+const CDN = 'https://lastfm.freetls.fastly.net/i/u';
 
 const SCROBBLES = 'scrobbles → all: 5000 | artist: 250 | album: 42';
 const ARTIST_RANKS = '\nartist ranks → w: #1 | m: #1 | y: #1 | o: #1';
@@ -30,10 +31,10 @@ function recentTracksBody(nowPlaying: boolean, album = 'Gantz Graf') {
           artist: { '#text': 'Autechre', mbid: '' },
           album: { '#text': album, mbid: '' },
           image: [
-            { size: 'small', '#text': 'https://img.example/s.png' },
-            { size: 'medium', '#text': 'https://img.example/m.png' },
-            { size: 'large', '#text': 'https://img.example/l.png' },
-            { size: 'extralarge', '#text': 'https://img.example/xl.png' },
+            { size: 'small', '#text': `${CDN}/34s/gantzgraf.png` },
+            { size: 'medium', '#text': `${CDN}/64s/gantzgraf.png` },
+            { size: 'large', '#text': `${CDN}/174s/gantzgraf.png` },
+            { size: 'extralarge', '#text': `${CDN}/300x300/gantzgraf.png` },
           ],
           url: 'https://www.last.fm/music/Autechre/_/Gantz+Graf',
           ...(nowPlaying ? { '@attr': { nowplaying: 'true' } } : {}),
@@ -186,6 +187,7 @@ describe('&fm', () => {
     expect(first.data.footer?.icon_url).toBe(LOADING_GIF);
     expect(first.data.title).toBe('**Gantz Graf**');
     expect(first.data.description).toContain('[***Gantz Graf***](');
+    expect(first.data.thumbnail?.url).toBe(`${CDN}/gantzgraf.png`);
 
     // one edit for the scrobbles footer, then one per resolved rank period
     expect(fake.edits).toHaveLength(9);
