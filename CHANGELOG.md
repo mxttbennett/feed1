@@ -8,6 +8,13 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.11.0] - 2026-08-27
+
+- `-rymsc` (alias `-rsc`) links a RateYourMusic chart built from the combined ratings of everyone
+  in the server who is logged into RYM with the bot.
+- `-rymsc --genre <genre>` (or `-g`) narrows the chart to one genre, and `--exclude-rated` hides
+  releases you have already rated. Soundtracks are deweighted unless you pass `--soundtracks`.
+
 ## [2.10.0] - 2026-08-27
 
 - Album and artist art in `-fm`, `-wk` and `-wka` embeds is now the full-resolution original

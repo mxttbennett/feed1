@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { EmbedBuilder } from 'discord.js';
 import { rymCommands } from '../../src/commands/rym.js';
 import { schema } from '../../src/db/index.js';
-import { makeFakeApp, makeFakeMessage } from '../helpers/fake.js';
+import { makeFakeApp, makeFakeMessage, withGuildMembers } from '../helpers/fake.js';
 
 const byName = (name: string) => rymCommands.find((c) => c.name === name)!;
 
@@ -487,5 +487,73 @@ describe('&srand', () => {
     const fake = makeFakeMessage({ content: '&srand' });
     await byName('srand').run({ app, message: fake.message, args: [] });
     expect(fake.replies[0]).toBe('you rolled the dice! http://rateyourmusic.com/misc/random');
+  });
+});
+
+describe('&rymsc', () => {
+  function setup(rymNames: (string | null)[]) {
+    const app = makeFakeApp(rymCommands);
+    rymNames.forEach((rymUsername, i) => {
+      app.db
+        .insert(schema.users)
+        .values({ discordUserId: `user-${i + 1}`, lastfmUsername: `lfm${i + 1}`, rymUsername })
+        .run();
+    });
+    const fake = makeFakeMessage({ content: '&rymsc' });
+    withGuildMembers(
+      fake,
+      rymNames.map((_, i) => `user-${i + 1}`),
+    );
+    return { app, fake };
+  }
+
+  const sent = (fake: ReturnType<typeof makeFakeMessage>) =>
+    (fake.payloads.at(-1)?.content as string) ?? fake.replies.at(-1)!;
+
+  it('lists every logged-in member alphabetically and deweights soundtracks', async () => {
+    const { app, fake } = setup(['zeta', 'Accel', 'monty']);
+    await byName('rymsc').run({ app, message: fake.message, args: [] });
+
+    expect(sent(fake)).toContain(
+      'https://rateyourmusic.com/charts/top/album,ep,comp,mixtape,djmix/all-time/' +
+        'u:Accel,monty,zeta/deweight:soundtrack/',
+    );
+    expect(sent(fake)).toContain('(3 users)');
+  });
+
+  it('skips members with no RYM username', async () => {
+    const { app, fake } = setup(['Accel', null]);
+    await byName('rymsc').run({ app, message: fake.message, args: [] });
+
+    expect(sent(fake)).toContain('u:Accel/');
+    expect(sent(fake)).toContain('(1 user)');
+  });
+
+  it('adds the genre and excl:ratings segments from flags', async () => {
+    const { app, fake } = setup(['Accel']);
+    await byName('rymsc').run({
+      app,
+      message: fake.message,
+      args: ['--exclude-rated', '-g', 'nature', 'recordings'],
+    });
+
+    expect(sent(fake)).toContain(
+      'g:nature%2drecordings/u:Accel/deweight:soundtrack/excl:ratings/',
+    );
+  });
+
+  it('replies with usage instead of a chart when a flag is wrong', async () => {
+    const { app, fake } = setup(['Accel']);
+    await byName('rymsc').run({ app, message: fake.message, args: ['--genre'] });
+
+    expect(fake.replies.at(-1)).toContain('&rymsc [--genre <genre>]');
+    expect(sent(fake)).not.toContain('rateyourmusic.com/charts');
+  });
+
+  it('refuses when nobody in the server is logged into rym', async () => {
+    const { app, fake } = setup([null]);
+    await byName('rymsc').run({ app, message: fake.message, args: [] });
+
+    expect(fake.replies.at(-1)).toBe('no one in this server is logged into rym.');
   });
 });
