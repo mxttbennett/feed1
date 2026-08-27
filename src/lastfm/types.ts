@@ -100,3 +100,23 @@ export function toInt(value: string | number | undefined): number {
 export function imageUrl(images: LastfmImage[] | undefined, sizeIndex: number): string {
   return images?.[sizeIndex]?.['#text'] ?? '';
 }
+
+const SIZE_PREFERENCE = ['mega', 'extralarge', 'large', 'medium', 'small'];
+
+/**
+ * Last.fm serves every image off one hash with the dimensions as a path segment
+ * (`/i/u/300x300/<hash>.jpg`); dropping the segment yields the original upload, which is
+ * far larger than the 300x300 that `extralarge` and `mega` both point at.
+ */
+export function originalSize(url: string): string {
+  return url.replace(/^(https:\/\/lastfm\.freetls\.fastly\.net\/i\/u\/)[^/]+\/([^/]+)$/, '$1$2');
+}
+
+/** Highest-resolution URL available for an image set, or '' when there is none. */
+export function highestResImageUrl(images: LastfmImage[] | undefined): string {
+  if (!images?.length) return '';
+  const named = new Map(images.filter((i) => i['#text']).map((i) => [i.size, i['#text']]));
+  const highest =
+    SIZE_PREFERENCE.map((size) => named.get(size)).find(Boolean) ?? [...named.values()][0];
+  return highest ? originalSize(highest) : '';
+}
