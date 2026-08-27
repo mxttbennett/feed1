@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.11.1] - 2026-08-27
+
+- `npm run img:pull` no longer reports macOS `.DS_Store` files as corrupt banner images. Only
+  content-addressed files are hash-checked; everything else is skipped and kept out of the zip.
+
 ## [2.11.0] - 2026-08-27
 
 - `-rymsc` (alias `-rsc`) links a RateYourMusic chart built from the combined ratings of everyone
