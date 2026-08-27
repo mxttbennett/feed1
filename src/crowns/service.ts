@@ -3,7 +3,7 @@ import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import type { LastfmClient } from '../lastfm/client.js';
 import { LastfmError } from '../lastfm/errors.js';
-import { toInt } from '../lastfm/types.js';
+import { bestImageUrl, toInt } from '../lastfm/types.js';
 import type { KeyedMutex } from '../core/mutex.js';
 
 export type CrownKind = 'artist' | 'album';
@@ -92,13 +92,13 @@ export class CrownService {
           canonicalAlbum = info.album.name;
           canonicalArtist = info.album.artist;
           albumUrl = info.album.url;
-          image = info.album.image?.[2]?.['#text'] ?? image;
+          image = bestImageUrl(info.album.image) || image;
         } else {
           const info = await this.lastfm.getArtistInfo(target.artistName, member.lastfmUsername);
           plays = toInt(info.artist.stats.userplaycount);
           canonicalArtist = info.artist.name;
           artistUrl = info.artist.url;
-          image = info.artist.image?.[2]?.['#text'] ?? image;
+          image = bestImageUrl(info.artist.image) || image;
         }
         listeners.push({ ...member, plays });
       } catch (error) {

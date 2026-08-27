@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.10.0] - 2026-08-27
+
+- Album and artist art in `-fm`, `-wk` and `-wka` embeds is now the full-resolution original
+  instead of a 174px thumbnail, so clicking through gives you the real cover.
+
 ## [2.9.0] - 2026-08-27
 
 - The album version of who-knows is now `-wka`. `-a` still works as an alias.

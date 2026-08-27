@@ -10,7 +10,7 @@ import { gatherRegisteredMembers } from '../crowns/members.js';
 import { notifyCrownChange } from '../crowns/notify.js';
 import { CrownService } from '../crowns/service.js';
 import { enqueueCrownJob } from '../crowns/worker.js';
-import { imageUrl, toInt } from '../lastfm/types.js';
+import { bestImageUrl, toInt } from '../lastfm/types.js';
 import type { Period, RecentTrack } from '../lastfm/types.js';
 import {
   CROWN_GIF_DEFAULT,
@@ -135,7 +135,7 @@ function baseEmbed(message: Message, lastfmUser: string, track: RecentTrack): Em
     })
     .setTitle(`**${escapeAsterisks(track.name)}**`)
     .setDescription(fmDescription(artist, album))
-    .setThumbnail(imageUrl(track.image, 2) || null);
+    .setThumbnail(bestImageUrl(track.image) || null);
 }
 
 export const fm: Command = {
