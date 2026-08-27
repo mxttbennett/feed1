@@ -116,7 +116,7 @@ export function originalSize(url: string): string {
 export function highestResImageUrl(images: LastfmImage[] | undefined): string {
   if (!images?.length) return '';
   const named = new Map(images.filter((i) => i['#text']).map((i) => [i.size, i['#text']]));
-  const best =
+  const highest =
     SIZE_PREFERENCE.map((size) => named.get(size)).find(Boolean) ?? [...named.values()][0];
-  return best ? originalSize(best) : '';
+  return highest ? originalSize(highest) : '';
 }
