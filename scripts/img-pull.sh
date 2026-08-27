@@ -51,9 +51,13 @@ corrupt=0
 total=0
 bytes=0
 while IFS= read -r file; do
+  expected="$(basename "$file")"
+  # only store.add() output is content-addressed, so only it can be checked this way.
+  # Finder drops .DS_Store into any directory it renders, and `${name%.*}` leaves ".DS"
+  # — a stem that can never be a digest, which read as corruption on every pull.
+  [[ "$expected" =~ ^[0-9a-f]{64}\.[a-z0-9]+$ ]] || continue
   total=$((total + 1))
   bytes=$((bytes + $(wc -c <"$file")))
-  expected="$(basename "$file")"
   expected="${expected%.*}"
   actual="$(shasum -a 256 "$file" | cut -d' ' -f1)"
   if [[ "$actual" != "$expected" ]]; then
@@ -64,10 +68,10 @@ while IFS= read -r file; do
     # prod's copy may be gone too, and a bad copy still beats none.
     mv "$file" "$file.corrupt"
   fi
-done < <(find "$DEST_DIR" -type f ! -name '*.corrupt')
+done < <(find "$DEST_DIR" -type f)
 
 rm -f "$DEST_ZIP.part"
-(cd "$DEST_DIR" && zip -r -q -X "$DEST_ZIP.part" . -x '*.corrupt') >/dev/null
+(cd "$DEST_DIR" && zip -r -q -X "$DEST_ZIP.part" . -x '*.corrupt' '*.DS_Store') >/dev/null
 mv "$DEST_ZIP.part" "$DEST_ZIP"
 
 guilds="$(find "$DEST_DIR" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
