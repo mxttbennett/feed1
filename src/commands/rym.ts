@@ -1,13 +1,15 @@
 import { EmbedBuilder } from 'discord.js';
-import { eq } from 'drizzle-orm';
-import type { Message, User as DiscordUser } from 'discord.js';
+import { eq, inArray } from 'drizzle-orm';
+import type { Guild, Message, User as DiscordUser } from 'discord.js';
 import type { Command, CommandContext } from '../core/command.js';
 import type { Db } from '../db/index.js';
 import { schema } from '../db/index.js';
 import { getRegisteredUser, resolveTargetUser } from '../core/users.js';
 import type { UserRow } from '../core/users.js';
 import { sendable } from '../core/channel.js';
+import { guildMemberCache } from '../core/members.js';
 import { paginateLines, sendPaginatedEmbed } from '../core/paginate.js';
+import { buildServerChartUrl, parseServerChartArgs } from './rymChart.js';
 
 type RymRow = UserRow & { rymUsername: string };
 
@@ -427,6 +429,45 @@ const srand: Command = {
   },
 };
 
+async function gatherRymUsernames(db: Db, guild: Guild): Promise<string[]> {
+  const members = await guildMemberCache(guild);
+  const ids = [...members.filter((m) => !m.user.bot).keys()];
+  if (ids.length === 0) return [];
+
+  const rows = db
+    .select()
+    .from(schema.users)
+    .where(inArray(schema.users.discordUserId, ids))
+    .all();
+
+  const names = rows.map((row) => row.rymUsername?.trim()).filter((n): n is string => !!n);
+  return [...new Set(names)].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
+const rymsc: Command = {
+  name: 'rymsc',
+  aliases: ['rsc'],
+  description: `Builds a RYM chart from the combined ratings of everyone in this server.`,
+  usage: 'rymsc [--genre <genre>] [--exclude-rated] [--soundtracks]',
+  notes:
+    'Only members logged into RYM with the bot are counted. Soundtracks are deweighted ' +
+    'unless you pass --soundtracks.',
+  guildOnly: true,
+  async run({ app, message, args }) {
+    const parsed = parseServerChartArgs(args);
+    if (parsed.error) {
+      return message.reply(`${parsed.error} usage: \`${app.config.prefix}${rymsc.usage}\``);
+    }
+
+    const usernames = await gatherRymUsernames(app.db, message.guild!);
+    if (usernames.length === 0) return message.reply(`no one in this server is logged into rym.`);
+
+    const url = buildServerChartUrl({ ...parsed, usernames });
+    const who = `${usernames.length} ${usernames.length === 1 ? 'user' : 'users'}`;
+    return sendable(message).send(`this server's RYM chart (${who}): ${url}`);
+  },
+};
+
 export const rymCommands: Command[] = [
   rym,
   rstat,
@@ -449,4 +490,5 @@ export const rymCommands: Command[] = [
   wrand,
   trand,
   srand,
+  rymsc,
 ];
