@@ -10,7 +10,7 @@ import { gatherRegisteredMembers } from '../crowns/members.js';
 import { notifyCrownChange } from '../crowns/notify.js';
 import { CrownService } from '../crowns/service.js';
 import { enqueueCrownJob } from '../crowns/worker.js';
-import { bestImageUrl, toInt } from '../lastfm/types.js';
+import { highestResImageUrl, toInt } from '../lastfm/types.js';
 import type { Period, RecentTrack } from '../lastfm/types.js';
 import {
   CROWN_GIF_DEFAULT,
@@ -135,7 +135,7 @@ function baseEmbed(message: Message, lastfmUser: string, track: RecentTrack): Em
     })
     .setTitle(`**${escapeAsterisks(track.name)}**`)
     .setDescription(fmDescription(artist, album))
-    .setThumbnail(bestImageUrl(track.image) || null);
+    .setThumbnail(highestResImageUrl(track.image) || null);
 }
 
 export const fm: Command = {
@@ -207,13 +207,8 @@ export const fm: Command = {
           crownArtist = albumData.album.artist;
           crownAlbum = albumData.album.name;
           crownGif =
-            albumCrownGif(
-              app.db,
-              message.guild!.id,
-              crownArtist,
-              crownAlbum,
-              message.author.id,
-            ) ?? CROWN_GIF_DEFAULT;
+            albumCrownGif(app.db, message.guild!.id, crownArtist, crownAlbum, message.author.id) ??
+            CROWN_GIF_DEFAULT;
         } catch {
           // no album info → no album segment, default gif
         }

@@ -113,7 +113,7 @@ export function originalSize(url: string): string {
 }
 
 /** Highest-resolution URL available for an image set, or '' when there is none. */
-export function bestImageUrl(images: LastfmImage[] | undefined): string {
+export function highestResImageUrl(images: LastfmImage[] | undefined): string {
   if (!images?.length) return '';
   const named = new Map(images.filter((i) => i['#text']).map((i) => [i.size, i['#text']]));
   const best =
