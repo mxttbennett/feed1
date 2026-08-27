@@ -8,6 +8,10 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.9.0] - 2026-08-27
+
+- The album version of who-knows is now `-wka`. `-a` still works as an alias.
+
 ## [2.8.0] - 2026-08-20
 
 - `-invite` (alias `-inv`) gives you a link to add feed1 to another server.
