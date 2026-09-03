@@ -1,6 +1,7 @@
 # `-rymfeed` — RYM activity feed to Discord
 
-**Status:** design complete, **blocked on transport** — see [What remains](#what-remains)
+**Status:** design complete, **blocked on transport** — see [What remains](#what-remains).
+Permission request drafted in [2026-09-03-rym-permission-request.md](2026-09-03-rym-permission-request.md).
 **Date:** 2026-09-03
 **Target version:** 2.12.0 (new command family + new tables → minor)
 
