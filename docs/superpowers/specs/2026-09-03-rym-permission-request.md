@@ -25,13 +25,13 @@ So the letter below is still worth sending, and the prior registration makes it 
 one to say yes to: it establishes that the front door was used first and that this is a narrow
 interim request, not an end run around the API programme.
 
-**Check `rateyourmusic.com/data-access/` before sending.** A site that built a data-access section
-with a registration form may well document its terms there. If that page already states what is
-permitted for existing endpoints, it may answer the question outright and make the letter
-unnecessary — read it in a browser, since it cannot be fetched from here.
+There is **no terms page**: `rateyourmusic.com/data-access/` itself is a 404 (checked in a browser,
+2026-09-03), so only the `register-interest` leaf exists. Nothing documents what is permitted for
+existing endpoints, which rules out the possibility that the question is already answered in writing
+and leaves asking as the only way to find out.
 
-Failing that, reply to whatever address acknowledged the registration, since that thread is already
-the right context. `rateyourmusic.com/contact` is the fallback.
+Send it by replying to whatever address acknowledged the registration — that thread is already the
+right context and links the two requests together. `rateyourmusic.com/contact` is the fallback.
 
 ## Why this ask is worth making
 
