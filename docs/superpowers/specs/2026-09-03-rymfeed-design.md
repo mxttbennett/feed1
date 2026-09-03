@@ -1,6 +1,6 @@
 # `-rymfeed` — RYM activity feed to Discord
 
-**Status:** design, not yet approved for implementation
+**Status:** design complete, **blocked on transport** — see [What remains](#what-remains)
 **Date:** 2026-09-03
 **Target version:** 2.12.0 (new command family + new tables → minor)
 
@@ -16,7 +16,7 @@ require Manage Server.
 ## What the RYM feed actually is
 
 Measured on 2026-09-03 against `https://rateyourmusic.com/~mattbennett/data/rss`, viewed in a
-browser (see [Transport](#transport-the-one-open-decision) for why not by script).
+browser (see [Transport](#transport-no-viable-path-today) for why not by script).
 
 The feed is real, current, and public — a logged-out incognito window reaches it after clearing the
 Cloudflare challenge. It is also served carelessly, and four of its defects drive the design.
@@ -76,10 +76,10 @@ item shape is mandatory.
 | `<channel>` missing required `<link>` and `<description>` | Feed is invalid RSS 2.0 |
 | `content-type: application/xhtml+xml; charset=utf-8` | Wrong for a feed; strict readers may reject |
 
-Lenient parsers handle all three by sniffing the body. Strict ones may not — which is exactly why the
-relay reader is something to test rather than assume.
+Lenient parsers handle all three by sniffing the body; strict ones may reject the feed outright. The
+parser choice in [Parsing](#parsing) accounts for this.
 
-## Transport: the one open decision
+## Transport: no viable path today
 
 Every non-browser client we tried gets `403` with `cf-mitigated: challenge`. Cloudflare's managed
 challenge fingerprints the TLS handshake and HTTP/2 settings, below anything request headers can
@@ -102,44 +102,58 @@ browser, no `cf_clearance` harvesting, no proxy rotation. That is engineering ar
 control on a site that prohibits automated access without permission, and it is also the brittle
 choice — Cloudflare rotates its challenge and the feature dies silently on a Tuesday.
 
-So the bot never contacts `rateyourmusic.com`. It reads from a relay the operator runs, behind a
-one-method interface. Which relay is **not settled** and is the first implementation step.
+The design therefore keeps the fetch behind a one-method interface so the rest of it stays valid
+whatever the transport turns out to be. But every candidate transport we can reach today is either
+blocked or against RYM's stated policy, which is what the rest of this section establishes.
 
-### Ruled out: a self-hosted reader
+### Ruled out: every relay, on policy as well as mechanism
 
-Miniflux or FreshRSS on the feed1 VM is just another Go/PHP HTTP client — its own TLS fingerprint, no
-challenge solving, and an Oracle Cloud datacenter IP with mediocre reputation. It collects the same
-403. Self-hosting relocates the request without changing what Cloudflare thinks of it. Noted because
-it is the intuitive answer and it does not work.
+The original plan was to read from a relay the operator runs — a self-hosted reader, or a hosted one
+like Feedly or Inoreader. **Both are ruled out.** Measured 2026-09-03.
 
-### Spike 1 — hosted reader (do this first)
+A self-hosted reader on the feed1 VM is just another Go/PHP HTTP client: its own TLS fingerprint, no
+challenge solving, and an Oracle Cloud datacenter IP with mediocre reputation. Self-hosting
+relocates the request without changing what Cloudflare thinks of it. Noted because it is the
+intuitive answer and it does not work.
 
-Large hosted readers operate well-known crawler fleets that Cloudflare's verified-bot program and
-site owners commonly allowlist. Plausible mechanism, not a certainty.
+A hosted reader fails too. Three independent third-party servers, all long-established, all blocked:
 
-1. Free Inoreader or Feedly account; subscribe to `https://rateyourmusic.com/~mattbennett/data/rss`.
-2. Wait for a refresh cycle. Do items appear?
-3. If yes, confirm the API exposes item `title`, `link`, and `published` — the three fields we need.
-
-A pass settles the transport and Spike 1's reader becomes `ReaderApiSource`. A failure means falling
-back to requesting express permission from Sonemic, or to the self-reported `-rate` design, which is
-a different spec.
-
-### Spike 2 — raw bytes, not the rendered tree
-
-Two sampled titles contain a bare `&`:
-
-```xml
-<title>Rated Robson Jorge & Lincoln Olivetti by Multiple Artists 3.0 stars</title>
+```
+W3C Feed Validator  → Server returned HTTP Error 403: Forbidden
+rss2json            → "Cannot download this RSS feed"
+allorigins          → 522
 ```
 
-A bare ampersand is invalid XML and a strict parser throws on it. It is most likely a browser
-artifact — the XML viewer decodes `&amp;` when rendering the tree — but that must be confirmed
-against raw bytes (**View Source**, or a saved `.xml` opened in an editor), because if the feed
-really ships bare ampersands then the parser has to recover from malformed XML rather than merely
-tolerate sloppy metadata.
+And `robots.txt` — 302 lines, ~60 named agents, **53 of them a blanket `Disallow: /`** — ends with:
 
-Either way the parser is configured leniently and a parse failure is a normal, reported failure.
+```
+User-agent: *
+Disallow: /
+```
+
+Deny by default. The only carve-outs with a real allow-list are search and social-preview bots
+(`googlebot`, `Googlebot-Image`, `msnbot`, `Slurp`, `Twitterbot`, `Mediapartners-Google`). **No feed
+reader is permitted** — `AwarioRssBot`, `NewsNow`, `Jetslide`, and `news-please` are all in the
+blocked cluster.
+
+So even a reader that *could* fetch the feed would be acting against RYM's stated policy. Feedly
+succeeding would mean Feedly is in Cloudflare's verified-bot list while ignoring RYM's robots.txt;
+that is not a foundation to build a feature on.
+
+### What remains
+
+1. **Express permission from Sonemic.** The one path `robots.txt` itself names. If granted, the
+   design below ships unchanged with a `DirectRssSource` doing one polite conditional GET per user
+   per interval, identifying itself honestly. Uncertain timeline, may get no reply.
+2. **Self-reported ratings.** Members post via a command; the bot owns the channel routing, opt-in,
+   and embeds. Everything downstream of the source seam survives; the parser, the watermark, the
+   scheduler, and roughly half this spec do not. That is a *different feature* wearing this one's
+   interface, and it needs its own spec rather than an edit to this one.
+3. **Shelve.** The design is recorded and the constraints are measured, so picking it up later costs
+   nothing but reading this file.
+
+Until one is chosen, this spec is **blocked, not cancelled**. Everything from
+[Architecture](#architecture) down is transport-independent and stays correct under option 1.
 
 ## Architecture
 
@@ -209,8 +223,17 @@ itself is the fallback — Last.fm enrichment is what makes this good, and de-sl
 good enough to feed it.
 
 **XML parser:** `fast-xml-parser`, a new dependency. Hand-rolled regex over XML is fragile against
-CDATA, entities, and the unicode already present in these slugs, and this feed is malformed enough
-that leniency has to be a deliberate parser setting rather than an accident.
+CDATA, entities, and the unicode already present in these slugs.
+
+The raw feed *is* well-formed with respect to entities — confirmed 2026-09-03 against View Source,
+where the ampersand appears correctly escaped as `Robson Jorge &amp; Lincoln Olivetti`. The bare `&`
+visible in a browser's XML tree is a rendering artifact. So the parser needs leniency for sloppy
+*metadata* (missing `<guid>`, missing required `<channel>` children, wrong content-type), not
+recovery from malformed XML.
+
+**Whitespace is not single-spaced.** Raw source shows `by Multiple Artists  3.0 stars` — two spaces
+before the score. Every pattern in the parser uses `\s+`, never a literal space. A regex written
+against the browser-rendered text would silently match nothing.
 
 ### Enrichment
 
@@ -398,12 +421,16 @@ command surface gets enough to prove the permission gates.
 
 ## Open questions
 
-1. **Which relay?** Spike 1. Gates the concrete `RymFeedSource` adapter and nothing else.
-2. **Does the raw feed contain bare ampersands?** Spike 2. Decides whether the parser must recover
-   from malformed XML or merely tolerate sloppy metadata.
-3. **Should `-rymfeed on` require the admin to have run `-rymfeed here` first?** Currently no — you
-   may opt in before a channel exists, and you start being posted when one does. The alternative
-   errors until setup, which is clearer but means two people have to coordinate in order.
+Both feed-format spikes are closed: entities are properly escaped in the raw source, and the score is
+preceded by multiple spaces. One question remains, and it is a decision rather than an investigation.
+
+1. **Which of the three paths in [What remains](#what-remains)?** Express permission, self-reported
+   ratings, or shelve. Nothing else in this spec can proceed until this is answered — it decides
+   whether the design ships as written, gets replaced, or waits.
+2. **Should `-rymfeed on` require the admin to have run `-rymfeed here` first?** As written, no — you
+   may opt in before a channel exists and you start being posted when one does. The alternative
+   errors until setup, which is clearer but forces two people to coordinate in order. Only relevant
+   under option 1.
 
 ## Deploy notes
 
