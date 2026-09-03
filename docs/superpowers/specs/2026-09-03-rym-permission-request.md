@@ -3,13 +3,35 @@
 Supporting artefact for [2026-09-03-rymfeed-design.md](2026-09-03-rymfeed-design.md), which is
 blocked until this is answered.
 
-## Where to send it
+## Status: the API waitlist is already done
 
-`robots.txt` line 1 directs to `https://rateyourmusic.com/tos` for the express-permission process.
-The contact address could not be retrieved from here — every automated request to the site returns
-`403`, which is the whole reason this letter exists — so pull it from
-`https://rateyourmusic.com/contact` in a browser. Prefer a named contact or support form over a
-generic address if one is offered.
+RYM runs an official data-access channel at `rateyourmusic.com/data-access/register-interest/`, and
+**the registration was submitted well before this spec** (confirmed 2026-09-03). Its confirmation
+reads:
+
+> Your submission was received; thank you for your interest. We will let you know when our API is
+> officially available, and will be additionally reaching out to individual users over the course of
+> development for potential early/beta access.
+
+That is a waitlist for a **future API**, not permission for the **existing RSS feed**. The two are
+different asks:
+
+| Ask | State |
+|---|---|
+| Access to a future official API | Submitted, awaiting an indefinite timeline |
+| Express permission to read the published `/~<user>/data/rss` feed today | **Not yet asked** |
+
+So the letter below is still worth sending, and the prior registration makes it a materially easier
+one to say yes to: it establishes that the front door was used first and that this is a narrow
+interim request, not an end run around the API programme.
+
+**Check `rateyourmusic.com/data-access/` before sending.** A site that built a data-access section
+with a registration form may well document its terms there. If that page already states what is
+permitted for existing endpoints, it may answer the question outright and make the letter
+unnecessary — read it in a browser, since it cannot be fetched from here.
+
+Failing that, reply to whatever address acknowledged the registration, since that thread is already
+the right context. `rateyourmusic.com/contact` is the fallback.
 
 ## Why this ask is worth making
 
@@ -32,13 +54,17 @@ people reading their own feeds through a tool they chose. Express permission is 
 >
 > Hello,
 >
-> I maintain a small open-source Discord bot for a private server of music friends. It is a hobby
-> project with no commercial use, no advertising, and no public deployment — one server, about five
-> people. Source: https://github.com/mxttbennett/feed1
+> I registered interest in the Sonemic data API a while ago and am happy to wait for it. I am
+> writing about something much smaller in the meantime.
 >
-> I would like to ask permission for one narrow thing. RYM publishes a per-user activity feed at
-> `/~<username>/data/rss`. I would like the bot to read that feed for members who have explicitly
-> opted in, so that when someone rates an album it can post a link to the release in our chat.
+> I maintain an open-source Discord bot for a private server of music friends. It is a hobby project
+> with no commercial use, no advertising, and no public deployment — one server, about five people.
+> Source: https://github.com/mxttbennett/feed1
+>
+> RYM already publishes a per-user activity feed at `/~<username>/data/rss`. I would like permission
+> for the bot to read that existing feed for members who have explicitly opted in, so that when
+> someone rates an album it can post a link to the release in our chat. I am asking rather than
+> assuming because `robots.txt` requests exactly that.
 >
 > Concretely, what I am asking to do:
 >
@@ -56,10 +82,10 @@ people reading their own feeds through a tool they chose. Express permission is 
 >   already posted. It does not archive, index, or republish RYM content anywhere beyond the one
 >   private Discord channel those members are already in.
 >
-> If this is something you would rather not permit, I completely understand and will drop the idea —
-> I would just rather ask than assume, given that `robots.txt` asks people to. If there is a
-> preferred mechanism, a rate you would like me to stay under, or a different endpoint you would
-> rather I used, I am glad to work within it.
+> If you would rather I simply waited for the official API, that is a completely fine answer and I
+> will shelve it — I would just rather ask than assume. And if there is a rate you want me to stay
+> under, a different endpoint you would prefer, or a note you want attached to my API registration
+> for whenever early access happens, I am glad to work within any of it.
 >
 > Thank you for RYM. It is where I have kept track of my listening for years.
 >
