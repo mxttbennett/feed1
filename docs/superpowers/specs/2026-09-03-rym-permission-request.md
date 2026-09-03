@@ -27,11 +27,31 @@ interim request, not an end run around the API programme.
 
 There is **no terms page**: `rateyourmusic.com/data-access/` itself is a 404 (checked in a browser,
 2026-09-03), so only the `register-interest` leaf exists. Nothing documents what is permitted for
-existing endpoints, which rules out the possibility that the question is already answered in writing
-and leaves asking as the only way to find out.
+existing endpoints, which leaves asking as the only way to find out.
 
-Send it by replying to whatever address acknowledged the registration — that thread is already the
-right context and links the two requests together. `rateyourmusic.com/contact` is the fallback.
+### Where to send it: the contact form, logged in
+
+**Route: `rateyourmusic.com/contact`, while signed in.** Researched 2026-09-03 — there is no
+published support email. Every avenue funnels to that form, and its own instruction is to be logged
+in or supply a valid address if you want a reply.
+
+Logged-in is the better channel on the merits, not a fallback: it binds the request to a long-lived
+account with real contribution history, and the request concerns that account's own feed. A mail
+from a personal address carries none of that.
+
+| Route | Verdict |
+|---|---|
+| `rateyourmusic.com/contact`, signed in | **Use this** |
+| `dmca-request@sonemic.com` | Real, but the Copyright Agent mailbox. Wrong channel; do not use |
+| Sonemic, Inc., 1700 7th Ave Ste 116 PMB 137, Seattle WA 98101 | Real, disproportionate |
+| `support@` / `api@` / `hello@` on either domain | No evidence they exist. Do not guess |
+
+Both domains run Google Workspace, so a guessed address would deliver if it happened to be right —
+which is exactly why guessing is the wrong move rather than a harmless one.
+
+Context worth knowing: third parties openly sell RYM scraper APIs. That is not license for
+anything, but it explains the aggressive posture, and it means a request that visibly distinguishes
+itself from commercial scraping is worth making.
 
 ## Why this ask is worth making
 
@@ -50,53 +70,55 @@ people reading their own feeds through a tool they chose. Express permission is 
 
 ## Draft
 
-> **Subject:** Permission request — reading user activity RSS feeds for a small Discord bot
+Trimmed for a contact form rather than an email — forms reward brevity, and being signed in means
+the account history speaks for itself.
+
+> **Subject:** Permission to read my own activity RSS feed from a small Discord bot
 >
 > Hello,
 >
-> I registered interest in the Sonemic data API a while ago and am happy to wait for it. I am
-> writing about something much smaller in the meantime.
+> I registered interest in the Sonemic data API a while back and am happy to wait for it. This is a
+> much smaller, interim request.
 >
-> I maintain an open-source Discord bot for a private server of music friends. It is a hobby project
-> with no commercial use, no advertising, and no public deployment — one server, about five people.
-> Source: https://github.com/mxttbennett/feed1
+> I maintain an open-source Discord bot for a private server of about five music friends — a hobby
+> project, no commercial use, no ads, not publicly hosted: https://github.com/mxttbennett/feed1
 >
 > RYM already publishes a per-user activity feed at `/~<username>/data/rss`. I would like permission
-> for the bot to read that existing feed for members who have explicitly opted in, so that when
-> someone rates an album it can post a link to the release in our chat. I am asking rather than
-> assuming because `robots.txt` requests exactly that.
+> for the bot to read that existing feed, only for members who explicitly opt in, so that when one
+> of us rates an album it posts a link to the release in our chat. I am asking rather than assuming
+> because robots.txt asks people to.
 >
-> Concretely, what I am asking to do:
+> What I am asking to do:
 >
-> - **Only opted-in members, only their own feed.** Each person enables it for themselves with a
->   command; the bot never reads a feed belonging to someone who has not asked it to.
-> - **One conditional `GET` per member per hour**, using `If-Modified-Since`/`ETag`. At our size
->   that is roughly five requests an hour — less traffic than one person browsing the site for a
->   minute. I am happy to make the interval longer, or to accept any rate limit or `Crawl-delay`
->   you would prefer.
-> - **An honest, stable User-Agent** so you can identify, rate-limit, or block it at any time:
+> - **Opted-in members only, and only their own feed.** Each person enables it for themselves.
+> - **One conditional GET per member per hour**, with `If-Modified-Since`/`ETag`. About five
+>   requests an hour at our size. Happy to go slower or to whatever rate you prefer.
+> - **A stable, honest User-Agent** so you can identify, throttle, or block it whenever you like:
 >   `feed1/2.x (+https://github.com/mxttbennett/feed1)`
-> - **Nothing else on the site is touched.** No page fetches, no scraping, no crawling, no search.
->   The feed endpoint only.
-> - **Nothing is retained.** The bot stores a single timestamp per member to know what it has
->   already posted. It does not archive, index, or republish RYM content anywhere beyond the one
->   private Discord channel those members are already in.
+> - **The feed endpoint only.** No page fetches, no crawling, no search, nothing else.
+> - **Nothing retained.** One timestamp per member, so it knows what it already posted. No
+>   archiving, indexing, or republishing beyond that one private Discord channel.
 >
-> If you would rather I simply waited for the official API, that is a completely fine answer and I
-> will shelve it — I would just rather ask than assume. And if there is a rate you want me to stay
-> under, a different endpoint you would prefer, or a note you want attached to my API registration
-> for whenever early access happens, I am glad to work within any of it.
+> One practical note: the endpoint currently returns a Cloudflare challenge to any non-browser
+> client, so if you are willing to permit this it would also need that User-Agent allowed at the
+> edge — otherwise permission alone still results in a 403.
 >
-> Thank you for RYM. It is where I have kept track of my listening for years.
+> If you would rather I just waited for the official API, that is a completely fine answer and I
+> will drop it. Likewise if there is a rate you want me under, a different endpoint you would prefer,
+> or a note worth attaching to my API registration for whenever early access happens.
 >
-> Best,
-> Matt Bennett
+> Thank you for RYM — it is where I have tracked my listening for years.
+>
+> Matt Bennett (`mattbennett`)
 
 ## If they say yes
 
 Implement `DirectRssSource` per the design doc:
 
 - One conditional `GET` per member per interval; store and send `ETag`/`Last-Modified`.
+- **Confirm the edge allowlist actually landed before writing code.** Permission is necessary but
+  not sufficient: the Cloudflare challenge sits in front of RYM's application, so a sincere yes
+  without a matching edge rule still yields `403`. Verify with one manual request first.
 - The exact User-Agent promised above, kept in sync with `package.json` version. Note that the bot
   currently sends **no** User-Agent on any request — `LastfmClient` sets none — so this is new code
   in the feed source, not an existing behaviour being reused.
