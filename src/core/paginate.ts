@@ -10,7 +10,7 @@ import {
 } from 'discord.js';
 import { sendable } from './channel.js';
 
-const PAGE_TIMEOUT_MS = 120_000;
+export const PAGE_TIMEOUT_MS = 120_000;
 
 /**
  * Send an embed with ◀ ▶ buttons when there are multiple pages.

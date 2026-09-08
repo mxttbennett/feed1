@@ -102,6 +102,10 @@ export interface FakeMessage {
    * so the resulting page lands in `payloads`.
    */
   click(customId: string, userId?: string): Promise<void>;
+  /** Choose values in a string select menu. */
+  select(customId: string, values: string[], userId?: string): Promise<void>;
+  /** Fire the collector's `end` handler, as the idle timeout would. */
+  expire(): void;
   message: Message;
 }
 
@@ -123,6 +127,8 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
 
   const payloads: Record<string, unknown>[] = [];
   let onCollect: ((interaction: unknown) => Promise<void> | void) | undefined;
+  let onEnd: (() => void) | undefined;
+  let collectorFilter: ((interaction: unknown) => boolean) | undefined;
 
   const sent = (payload: unknown) => {
     if (typeof payload === 'string') replies.push(payload);
@@ -148,11 +154,19 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
       },
       react: () => Promise.resolve(),
       delete: () => Promise.resolve(),
-      createMessageComponentCollector: () => ({
-        on: (event: string, handler: (interaction: unknown) => Promise<void> | void) => {
-          if (event === 'collect') onCollect = handler;
-        },
-      }),
+      createMessageComponentCollector: (options?: {
+        filter?: (interaction: unknown) => boolean;
+      }) => {
+        // the real collector drops interactions its filter rejects; keeping it here is what makes
+        // a command's own-invoker check testable rather than assumed
+        collectorFilter = options?.filter;
+        return {
+          on: (event: string, handler: (interaction: never) => Promise<void> | void) => {
+            if (event === 'collect') onCollect = handler as typeof onCollect;
+            if (event === 'end') onEnd = handler as () => void;
+          },
+        };
+      },
     };
   }
 
@@ -224,21 +238,39 @@ export function makeFakeMessage(opts: FakeMessageOptions): FakeMessage {
     react: () => Promise.resolve(),
   } as unknown as Message;
 
-  const click = async (customId: string, userId = opts.authorId ?? 'user-1') => {
+  const interact = async (interaction: Record<string, unknown>) => {
     if (!onCollect) throw new Error('nothing registered a component collector');
-    await onCollect({
-      customId,
-      user: { id: userId },
+    const full = {
+      ...interaction,
       update: (payload: Record<string, unknown>) => {
         payloads.push(payload);
         const pageEmbeds: unknown[] = Array.isArray(payload.embeds) ? payload.embeds : [];
         embeds.push(...pageEmbeds);
         return Promise.resolve(undefined);
       },
-    });
+    };
+    if (collectorFilter && !collectorFilter(full)) return;
+    await onCollect(full);
   };
 
-  return { replies, embeds, edits, bannerSets, payloads, click, message };
+  const click = (customId: string, userId = opts.authorId ?? 'user-1') =>
+    interact({
+      customId,
+      user: { id: userId },
+      isStringSelectMenu: () => false,
+    });
+
+  const select = (customId: string, values: string[], userId = opts.authorId ?? 'user-1') =>
+    interact({
+      customId,
+      values,
+      user: { id: userId },
+      isStringSelectMenu: () => true,
+    });
+
+  const expire = () => onEnd?.();
+
+  return { replies, embeds, edits, bannerSets, payloads, click, select, expire, message };
 }
 
 /**
