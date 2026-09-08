@@ -18,6 +18,7 @@ import { bannerCommands } from './commands/banner.js';
 import { adminCommands } from './commands/admin.js';
 import { changelogCommands } from './commands/changelog.js';
 import { dbCommands } from './commands/db.js';
+import { vmCommands } from './commands/vm.js';
 import { BannerScheduler } from './banner/worker.js';
 
 async function main(): Promise<void> {
@@ -37,6 +38,7 @@ async function main(): Promise<void> {
     ...adminCommands,
     ...changelogCommands,
     ...dbCommands,
+    ...vmCommands,
   );
 
   const bot = createBot(config, db, registry);

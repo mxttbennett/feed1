@@ -8,6 +8,13 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.13.0] - 2026-09-07
+
+- New owner-only `-vm` (alias `-host`): a snapshot of the machine the bot runs on — uptime, load
+  average against the core count, memory, disk, the size of the bot's data directory, and the bot
+  process's own memory and uptime. The figures cover the whole box, which the embed says, because
+  another stack shares it.
+
 ## [2.12.0] - 2026-09-07
 
 - New owner-only `-db` command: browses the bot's database from Discord. Pick a table and a sort
