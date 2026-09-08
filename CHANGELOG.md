@@ -8,6 +8,12 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.12.0] - 2026-09-07
+
+- New owner-only `-db` command: browses the bot's database from Discord. Pick a table and a sort
+  column from two dropdowns, page through rows with the arrows, and flip the sort direction. It is
+  read-only by construction — there is no way to type a query, so nothing it can do writes.
+
 ## [2.11.2] - 2026-09-03
 
 - No behaviour change. Adds the design spec for a planned `-rymfeed` command, which would post a
