@@ -169,6 +169,8 @@ Two behaviours worth knowing:
 - Current host: Ampere A1.Flex, 1 OCPU (ARM Neoverse-N1) / 6 GB RAM / 45 GB disk,
   Ubuntu 24.04, no swap. Public IP is in the `DEPLOY_HOST` repo secret.
 - Logs: `journalctl -u feed1 -f`
+- `-vm` (alias `-host`) in Discord, owner only: uptime, load average against core count, memory,
+  disk, the size of `.data/`, and the bot process's own RSS — the usual reason to SSH in.
 - DB + rotated backups live in `/opt/feed1/.data/` (12-hourly, keeps 20), plus a
   `predeploy_*.sqlite` snapshot per deploy. All snapshots use `VACUUM INTO`.
 - `-banner` images live in `/opt/feed1/.data/banners/<guildId>/`, uncapped — each is at most 10 MB,
