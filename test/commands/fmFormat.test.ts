@@ -5,6 +5,7 @@ import {
   rankLine,
   rymAlbumSearchUrl,
   rymArtistSearchUrl,
+  rymSearchLink,
   scrobblesFooter,
 } from '../../src/commands/fmFormat.js';
 
@@ -26,6 +27,24 @@ describe('rym search urls', () => {
     expect(rymAlbumSearchUrl("The B-52's", 'Wild Planet')).toBe(
       "https://www.google.com/search?q=The%20B-52's%20Wild%20Planet%20release%20reviews%20ratings%20site%3Arateyourmusic.com%2Frelease%2F",
     );
+  });
+});
+
+describe('rymSearchLink', () => {
+  it('links the artist search when no album is given', () => {
+    expect(rymSearchLink('Autechre')).toBe(
+      '[rym search →](https://www.google.com/search?q=Autechre%20artist%20songs%20discography%20biography%20site%3Arateyourmusic.com/artist/)',
+    );
+  });
+
+  it('links the album search when an album is given', () => {
+    expect(rymSearchLink('Autechre', 'Confield')).toBe(
+      '[rym search →](https://www.google.com/search?q=Autechre%20Confield%20release%20reviews%20ratings%20site%3Arateyourmusic.com%2Frelease%2F)',
+    );
+  });
+
+  it('falls back to the artist search for a null album', () => {
+    expect(rymSearchLink('Autechre', null)).toBe(rymSearchLink('Autechre'));
   });
 });
 

@@ -6,7 +6,7 @@ import { gatherRegisteredMembers } from '../crowns/members.js';
 import { CrownService, type ScanResult } from '../crowns/service.js';
 import { notifyCrownChange } from '../crowns/notify.js';
 import { paginateLines, sendPaginatedEmbed } from '../core/paginate.js';
-import { CROWN_GIF_OWN } from './fmFormat.js';
+import { CROWN_GIF_OWN, rymSearchLink } from './fmFormat.js';
 
 function listenerLines(result: ScanResult): string[] {
   return result.listeners
@@ -98,10 +98,11 @@ async function runWhoKnows(ctx: CommandContext, kind: 'artist' | 'album'): Promi
   }
 
   const footer = scanFooter(result);
+  const rymLine = rymSearchLink(result.artistName, kind === 'album' ? result.albumName : null);
   const makeEmbed = (description: string) => {
     const embed = new EmbedBuilder()
       .setColor(message.member?.displayColor ?? null)
-      .setDescription(description)
+      .setDescription(`${description}\n\n${rymLine}`)
       .setFooter({ text: footer, iconURL: message.author.displayAvatarURL() });
     if (kind === 'album') {
       embed
