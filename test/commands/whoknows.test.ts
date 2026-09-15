@@ -33,6 +33,27 @@ function mockArtistScan(plays: Record<string, string>) {
     });
 }
 
+function mockAlbumScan() {
+  nock(BASE)
+    .persist()
+    .get('/2.0/')
+    .query((q) => q.method === 'album.getinfo')
+    .reply(200, {
+      album: {
+        name: 'Confield',
+        artist: 'Autechre',
+        url: 'https://last.fm/music/Autechre/Confield',
+        userplaycount: 12,
+        image: [
+          { size: 'small', '#text': '' },
+          { size: 'medium', '#text': '' },
+          { size: 'large', '#text': `${CDN}/174s/confield.png` },
+          { size: 'extralarge', '#text': `${CDN}/300x300/confield.png` },
+        ],
+      },
+    });
+}
+
 function mockRecentTracks(opts: { nowPlaying?: boolean; empty?: boolean } = {}) {
   const track = {
     name: 'Gantz Graf',
@@ -87,6 +108,15 @@ describe('&wk', () => {
     expect(crown.artistPlays).toBe(40);
   });
 
+  it('ends the description with an artist rym search link', async () => {
+    const { app, fake } = setup({ lfm1: '10', lfm2: '40' });
+    await byName('wk').run({ app, message: fake.message, args: ['autechre'] });
+    const desc = (fake.embeds[0] as EmbedBuilder).data.description!;
+    expect(desc).toContain(
+      '[rym search →](https://www.google.com/search?q=Autechre%20artist%20songs',
+    );
+  });
+
   it('filters zero-play members out of the list', async () => {
     const { app, fake } = setup({ lfm1: '10', lfm2: '0' });
     await byName('wk').run({ app, message: fake.message, args: ['autechre'] });
@@ -129,25 +159,7 @@ describe('&a', () => {
       .insert(schema.users)
       .values([{ discordUserId: 'user-1', lastfmUsername: 'lfm1' }])
       .run();
-    nock(BASE)
-      .persist()
-      .get('/2.0/')
-      .query((q) => q.method === 'album.getinfo')
-      .reply(200, {
-        album: {
-          name: 'Confield',
-          artist: 'Autechre',
-          url: 'https://last.fm/music/Autechre/Confield',
-          userplaycount: 12,
-          image: [
-            { size: 'small', '#text': '' },
-            { size: 'medium', '#text': '' },
-            { size: 'large', '#text': `${CDN}/174s/confield.png` },
-            { size: 'extralarge', '#text': `${CDN}/300x300/confield.png` },
-          ],
-        },
-      });
-
+    mockAlbumScan();
     const fake = makeFakeMessage({ content: '&a Autechre | Confield' });
     withGuildMembers(fake, ['user-1']);
     await byName('wka').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
@@ -157,6 +169,20 @@ describe('&a', () => {
     expect(embed.data.author?.name).toBe('Autechre');
     expect(embed.data.thumbnail?.url).toBe(`${CDN}/confield.png`);
     expect(app.db.select().from(schema.albumCrowns).all()[0]!.albumName).toBe('Confield');
+  });
+
+  it('ends the description with an album rym search link', async () => {
+    const app = makeFakeApp(whoKnowsCommands);
+    app.db.insert(schema.users).values({ discordUserId: 'user-1', lastfmUsername: 'lfm1' }).run();
+    mockAlbumScan();
+    const fake = makeFakeMessage({ content: '&a Autechre | Confield' });
+    withGuildMembers(fake, ['user-1']);
+    await byName('wka').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
+
+    const desc = (fake.embeds[0] as EmbedBuilder).data.description!;
+    expect(desc).toContain(
+      '[rym search →](https://www.google.com/search?q=Autechre%20Confield%20release%20reviews',
+    );
   });
 
   it('rejects album args without the pipe separator', async () => {

@@ -34,6 +34,12 @@ export function rymAlbumSearchUrl(artist: string, album: string): string {
   );
 }
 
+/** Trailing link line for the &wk / &wka embeds, pointing at the same rym search &fm uses. */
+export function rymSearchLink(artist: string, album?: string | null): string {
+  const url = album ? rymAlbumSearchUrl(artist, album) : rymArtistSearchUrl(artist);
+  return `[rym search →](${url})`;
+}
+
 export function fmDescription(artist: string, album: string): string {
   const art = rymArtistSearchUrl(artist);
   const artistLine = `[**${escapeAsterisks(artist)}**]( ${art} 'search rym for ${artist} ')`;

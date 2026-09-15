@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.14.0] - 2026-09-15
+
+- `-wk` and `-wka` now end with a `rym search →` link, the same rym-filtered google search `-fm`
+  already puts behind the artist and album names. `-wk` searches the artist, `-wka` the album.
+
 ## [2.13.0] - 2026-09-07
 
 - New owner-only `-vm` (alias `-host`): a snapshot of the machine the bot runs on — uptime, load
