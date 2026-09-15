@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.14.1] - 2026-09-15
+
+- The `rym search →` link on `-wk` and `-wka` now sits directly under the last listener instead of
+  floating in a gap halfway to the footer.
+
 ## [2.14.0] - 2026-09-15
 
 - `-wk` and `-wka` now end with a `rym search →` link, the same rym-filtered google search `-fm`

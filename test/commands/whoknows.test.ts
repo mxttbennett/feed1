@@ -111,9 +111,10 @@ describe('&wk', () => {
   it('ends the description with an artist rym search link', async () => {
     const { app, fake } = setup({ lfm1: '10', lfm2: '40' });
     await byName('wk').run({ app, message: fake.message, args: ['autechre'] });
-    const desc = (fake.embeds[0] as EmbedBuilder).data.description!;
-    expect(desc).toContain(
-      '[rym search →](https://www.google.com/search?q=Autechre%20artist%20songs',
+    const lines = (fake.embeds[0] as EmbedBuilder).data.description!.split('\n');
+    expect(lines.at(-2)).toBe('2. user-1 → **10** scrobbles (20%)');
+    expect(lines.at(-1)).toBe(
+      '[rym search →](https://www.google.com/search?q=Autechre%20artist%20songs%20discography%20biography%20site%3Arateyourmusic.com/artist/)',
     );
   });
 
@@ -179,9 +180,10 @@ describe('&a', () => {
     withGuildMembers(fake, ['user-1']);
     await byName('wka').run({ app, message: fake.message, args: ['Autechre', '|', 'Confield'] });
 
-    const desc = (fake.embeds[0] as EmbedBuilder).data.description!;
-    expect(desc).toContain(
-      '[rym search →](https://www.google.com/search?q=Autechre%20Confield%20release%20reviews',
+    const lines = (fake.embeds[0] as EmbedBuilder).data.description!.split('\n');
+    expect(lines.at(-2)).toContain('user-1');
+    expect(lines.at(-1)).toBe(
+      '[rym search →](https://www.google.com/search?q=Autechre%20Confield%20release%20reviews%20ratings%20site%3Arateyourmusic.com%2Frelease%2F)',
     );
   });
 
