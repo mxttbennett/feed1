@@ -102,7 +102,7 @@ async function runWhoKnows(ctx: CommandContext, kind: 'artist' | 'album'): Promi
   const makeEmbed = (description: string) => {
     const embed = new EmbedBuilder()
       .setColor(message.member?.displayColor ?? null)
-      .setDescription(`${description}\n\n${rymLine}`)
+      .setDescription(`${description}\n${rymLine}`)
       .setFooter({ text: footer, iconURL: message.author.displayAvatarURL() });
     if (kind === 'album') {
       embed
