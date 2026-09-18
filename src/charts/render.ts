@@ -60,10 +60,15 @@ export async function renderChart(
   const tiles = await Promise.all(entries.map((e) => loadTile(e.imageUrl)));
   const missingCovers = tiles.filter((t) => t.missing).length;
 
-  const grid = createCanvas(x * 100, y * 100);
+  const rows = Math.max(1, Math.min(y, Math.ceil(entries.length / x)));
+  const lastCol = entries.length === 0 ? 0 : (entries.length - 1) % x;
+  const textBottom = (rows - 1) * 100 + 15 * (lastCol + 1) + 4;
+  const canvasHeight = Math.min(y * 100, Math.max(rows * 100, textBottom));
+
+  const grid = createCanvas(x * 100, canvasHeight);
   const gctx = grid.getContext('2d');
   let iter = 0;
-  for (let yAxis = 0; yAxis < y * 100 && iter < tiles.length; yAxis += 100) {
+  for (let yAxis = 0; yAxis < rows * 100 && iter < tiles.length; yAxis += 100) {
     for (let xAxis = 0; xAxis < x * 100 && iter < tiles.length; xAxis += 100) {
       gctx.drawImage(tiles[iter]!.img, xAxis, yAxis, 100, 100);
       iter++;
@@ -78,7 +83,7 @@ export async function renderChart(
   const { width } = measure.measureText(longestName);
 
   const canvasWidth = x * 100 + 120 + width;
-  const finalCanvas = createCanvas(canvasWidth, y * 100);
+  const finalCanvas = createCanvas(canvasWidth, canvasHeight);
   const ctx = finalCanvas.getContext('2d');
   ctx.fillStyle = 'black';
   ctx.fillRect(0, 0, finalCanvas.width, finalCanvas.height);
@@ -94,7 +99,7 @@ export async function renderChart(
   let newAlbums = 0;
   let crowns = 0;
   let i = 0;
-  for (let byChart = 0; byChart < 100 * y; byChart += 100) {
+  for (let byChart = 0; byChart < 100 * rows; byChart += 100) {
     for (let inChart = 15; inChart <= 15 * x; inChart += 15) {
       const yPos = byChart + inChart;
       const entry = entries[i];

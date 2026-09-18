@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.14.2] - 2026-09-18
+
+- Chart images are trimmed to the albums they actually contain. Asking for a grid that Last.fm can't
+  fill no longer leaves a band of empty black below the covers.
+
 ## [2.14.1] - 2026-09-15
 
 - The `rym search →` link on `-wk` and `-wka` now sits directly under the last listener instead of
