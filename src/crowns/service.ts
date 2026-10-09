@@ -55,6 +55,11 @@ export interface ScanTarget {
   albumName?: string;
 }
 
+export interface ScanOptions {
+  /** awaited between member lookups; its duration is excluded from `tookMs` */
+  pauseBetweenMembers?: () => Promise<void>;
+}
+
 export class CrownService {
   constructor(
     private readonly db: Db,
@@ -68,9 +73,14 @@ export class CrownService {
    * Fetch every member's playcount and settle the crown. Zero-play members are kept in
    * the listener list (legacy who-knows showed them filtered later); crowns require >0 plays.
    */
-  async scan(target: ScanTarget, members: RegisteredMember[]): Promise<ScanResult> {
+  async scan(
+    target: ScanTarget,
+    members: RegisteredMember[],
+    options: ScanOptions = {},
+  ): Promise<ScanResult> {
     const kind: CrownKind = target.albumName === undefined ? 'artist' : 'album';
     const started = this.now();
+    let pausedMs = 0;
 
     let canonicalArtist = target.artistName;
     let canonicalAlbum = target.albumName ?? null;
@@ -79,7 +89,12 @@ export class CrownService {
     let image: string | null = null;
 
     const listeners: Listener[] = [];
-    for (const member of members) {
+    for (const [index, member] of members.entries()) {
+      if (index > 0 && options.pauseBetweenMembers) {
+        const pauseStarted = this.now();
+        await options.pauseBetweenMembers();
+        pausedMs += this.now() - pauseStarted;
+      }
       try {
         let plays: number;
         if (kind === 'album') {
@@ -134,7 +149,7 @@ export class CrownService {
 
     if (change) await this.onChange(change);
 
-    const tookMs = this.now() - started;
+    const tookMs = this.now() - started - pausedMs;
     this.db.insert(schema.scanTimings).values({ kind, guildId: target.guildId, ms: tookMs }).run();
 
     return {

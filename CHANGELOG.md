@@ -8,6 +8,11 @@ matching section.
 Entry format: `## [MAJOR.MINOR.PATCH] - YYYY-MM-DD`, then one `-` bullet per change, written for the
 people using the bot rather than for the diff.
 
+## [2.14.2] - 2026-10-09
+
+- The background crown queue now waits 5 seconds between each member's Last.fm lookup, to put less strain on
+  the Last.fm API while it drains a backlog. Recorded scan timings don't include the waits.
+
 ## [2.14.1] - 2026-09-15
 
 - The `rym search →` link on `-wk` and `-wka` now sits directly under the last listener instead of
