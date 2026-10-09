@@ -169,6 +169,38 @@ describe('CrownService artist crowns', () => {
     await service.scan({ ...GUILD, artistName: 'Autechre' }, [member('a')]);
     expect(db.select().from(schema.scanTimings).all()).toHaveLength(1);
   });
+
+  it('pauses between members and excludes the pauses from the timing', async () => {
+    // Arrange
+    const db = createDb(':memory:');
+    runMigrations(db);
+    let clock = 0;
+    const service = new CrownService(
+      db,
+      stubLastfm({ 'lfm-a': 3, 'lfm-b': 2, 'lfm-c': 1 }),
+      new KeyedMutex(),
+      async () => {},
+      () => clock,
+    );
+    let pauses = 0;
+
+    // Act
+    const result = await service.scan(
+      { ...GUILD, artistName: 'Autechre' },
+      [member('a'), member('b'), member('c')],
+      {
+        pauseBetweenMembers: async () => {
+          pauses++;
+          clock += 5_000;
+        },
+      },
+    );
+
+    // Assert
+    expect(pauses).toBe(2);
+    expect(result.tookMs).toBe(0);
+    expect(db.select().from(schema.scanTimings).all()[0]!.ms).toBe(0);
+  });
 });
 
 describe('CrownService album crowns', () => {

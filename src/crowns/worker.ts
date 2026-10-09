@@ -10,6 +10,7 @@ type JobRow = typeof schema.crownJobs.$inferSelect;
 
 const MAX_ATTEMPTS = 3;
 const ITEM_DELAY_MS = 10_000;
+const MEMBER_DELAY_MS = 5_000;
 const IDLE_DELAY_MS = 5 * 60_000;
 
 export interface WorkerHooks {
@@ -158,6 +159,7 @@ export class CrownJobWorker {
         ...(job.kind === 'album' ? { albumName: job.albumName } : {}),
       },
       members,
+      { pauseBetweenMembers: () => this.sleep(MEMBER_DELAY_MS) },
     );
   }
 }
