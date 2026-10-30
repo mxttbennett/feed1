@@ -14,8 +14,8 @@ import {
 const MAX_MEMBERS = 60;
 
 const match: Command = {
-  name: 'match',
-  aliases: ['twin', 'taste'],
+  name: 'taste',
+  aliases: ['match', 'twin'],
   description: 'Ranks the server by how closely their taste matches yours.',
   usage: 'match',
   notes: 'Compares everyone logged in here on their all-time top 200 artists.',

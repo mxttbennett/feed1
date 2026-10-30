@@ -10,7 +10,7 @@ people using the bot rather than for the diff.
 
 ## [2.16.0] - 2026-10-30
 
-- New `-match` command (aliases `-twin`, `-taste`) ranks everyone in the server who is logged in by how
+- New `-taste` command (aliases `-match`, `-twin`) ranks everyone in the server who is logged in by how
   closely their listening matches yours, using each person's all-time top 200 artists. It also names your
   closest match's shared artists and the member furthest from your taste.
 

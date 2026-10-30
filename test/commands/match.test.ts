@@ -47,10 +47,15 @@ function mockTop(user: string, artists: ReturnType<typeof top> | 'private') {
     );
 }
 
-describe('&match', () => {
+describe('&taste', () => {
+  it('is named taste with match and twin as aliases', () => {
+    expect(match.name).toBe('taste');
+    expect(match.aliases).toEqual(['match', 'twin']);
+  });
+
   it('requires login', async () => {
     const app = makeFakeApp([match]);
-    const fake = makeFakeMessage({ content: '&match' });
+    const fake = makeFakeMessage({ content: '&taste' });
     await match.run({ app, message: fake.message, args: [] });
     expect(fake.replies[0]).toBe(app.snippets.noLogin);
   });
@@ -71,7 +76,7 @@ describe('&match', () => {
     mockTop('stranger', top(['Slayer', 100]));
     mockTop('private', 'private');
 
-    const fake = makeFakeMessage({ content: '&match' });
+    const fake = makeFakeMessage({ content: '&taste' });
     withGuildMembers(fake, ['user-1', 'u2', 'u3', 'u4']);
     await match.run({ app, message: fake.message, args: [] });
 
